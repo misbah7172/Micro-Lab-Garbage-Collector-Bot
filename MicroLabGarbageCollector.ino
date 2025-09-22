@@ -9,8 +9,8 @@
 #define BLYNK_AUTH_TOKEN "YOUR_AUTH_TOKEN"
 
 // WiFi credentials
-const char* ssid = "YOUR_WIFI_SSID";
-const char* password = "YOUR_WIFI_PASSWORD";
+const char* ssid = "Salim_Hall";
+const char* password = "154089@UIU";
 
 // Motor driver pins (L298N)
 #define MOTOR_LEFT_FORWARD 2
