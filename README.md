@@ -21,20 +21,6 @@ An AI-powered autonomous garbage collection robot using ESP32, computer vision, 
 6. **Sensor Data Reporting**: Sends environmental data to the Blynk app
 7. **Real-time Monitoring**: Live video feed with detection overlays
 
-##  System Architecture
-
-### Overview
-```
-┌─────────────────┐    USB/Serial    ┌─────────────────┐
-│     LAPTOP      │◄────────────────►│      ESP32      │
-│                 │                  │   (On Robot)    │
-│ • Webcam        │                  │                 │
-│ • AI Detection  │                  │ • Motor Control │
-│ • Python Script │                  │ • Sensors       │
-│ • Live Video    │                  │ • Robotic Arm   │
-└─────────────────┘                  │ • Blynk IoT     │
-                                     └─────────────────┘
-```
 
 ### Data Flow
 1. **Laptop camera** captures live video feed
@@ -86,54 +72,6 @@ GPIO 27      →    Gripper Servo Signal
 ESP32 VIN    →    L298N +12V (Battery Positive)
 ESP32 GND    →    Common Ground
 ESP32 3.3V   →    Sensors VCC
-```
-
-### Complete Wiring Schematic
-
-```
-                    ┌─────────────┐
-                    │    ESP32    │
-                    │             │
-      ┌─────────────┤ GPIO 2      │
-      │         ┌───┤ GPIO 4      │
-      │         │┌──┤ GPIO 5      │
-      │         ││┌─┤ GPIO 12     │
-      │         │││ │ GPIO 14     │──── HC-SR04 ECHO
-      │         │││ │ GPIO 16     │──── L298N IN3
-      │         │││ │ GPIO 17     │──── L298N IN4
-      │         │││ │ GPIO 18     │──── L298N ENB
-      │         │││ │ GPIO 23     │──── DHT22 Data
-      │         │││ │ GPIO 25     │──── Base Servo
-      │         │││ │ GPIO 26     │──── Arm Servo
-      │         │││ │ GPIO 27     │──── Gripper Servo
-      │         │││ │ GPIO 35     │──── MQ-2 Analog
-      │         │││ │ VIN         │──── Battery +
-      │         │││ │ GND         │──── Common Ground
-      │         │││ └─────────────┘
-      │         │││
-      │         │││  ┌─────────────┐
-      │         │││  │    L298N    │
-      │         ││└──┤ IN1         │
-      │         │└───┤ IN2         │
-      │         └────┤ ENA         │
-      │              │ IN3         │
-      │              │ IN4         │
-      │              │ ENB         │
-      │              │ OUT1        │──── Left Motor +
-      │              │ OUT2        │──── Left Motor -
-      │              │ OUT3        │──── Right Motor +
-      │              │ OUT4        │──── Right Motor -
-      │              └─────────────┘
-      │
-      └────── L298N IN1
-      
-           ┌─────────────┐
-           │   DHT22     │
-           │ VCC GND Data│
-           └──┬───┬───┬──┘
-              │   │   └── GPIO 23
-              │   └────── GND
-              └────────── 3.3V
 ```
 
 ##  Software Setup
@@ -196,32 +134,6 @@ ESP32 3.3V   →    Sensors VCC
 | **Built-in/USB Webcam** | 720p or higher resolution | Live video feed for detection |
 | **USB Port** | USB 2.0/3.0 | Serial connection to ESP32 |
 | **Python 3.8+** | Latest version recommended | Running detection script |
-
-### Robot Hardware (ESP32-Based)
-| Component | Quantity | Purpose |
-|-----------|----------|---------|
-| ESP32 Development Board | 1 | Main microcontroller |
-| L298N Motor Driver | 1 | Motor control |
-| DC Geared Motors | 2 | Robot movement |
-| Wheels | 2 | Robot locomotion |
-| HC-SR04 Ultrasonic Sensor | 1 | Obstacle detection |
-| DHT22 Temperature/Humidity Sensor | 1 | Environmental monitoring |
-| MQ-2 Smoke Sensor | 1 | Smoke detection |
-| SG90 Servo Motors | 3 | Robotic arm (base, arm, gripper) |
-| 18650 Li-ion Batteries | 2 | Power supply |
-| Battery Holder | 1 | Battery mounting |
-| Chassis/Frame | 1 | Robot structure |
-| Jumper Wires | 20+ | Connections |
-| USB Cable (ESP32) | 1 | Connection to laptop |
-| Breadboard/PCB | 1 | Circuit assembly |
-
-### Tools Required
-- Soldering iron and solder
-- Wire strippers  
-- Screwdrivers
-- Multimeter
-- Hot glue gun
-- 3D printer (optional, for custom parts)
 
 ### Connection Overview
 - **Laptop ↔ ESP32**: USB cable for serial communication
