@@ -7,12 +7,18 @@ supervision==0.16.0
 pyserial==3.5
 
 # Image processing and utilities
-numpy==1.24.3
+numpy<2  # Use NumPy 1.x for compatibility with OpenCV and other packages
 pillow==10.0.0
 
 # PyTorch (required by YOLO)
 torch>=2.0.0
 torchvision>=0.15.0
+
+# Web dashboard dependencies
+flask==3.0.0
+flask-socketio==5.3.6
+python-socketio==5.9.0
+python-engineio==4.7.1
 
 # Dashboard and system utilities
 matplotlib==3.7.2
