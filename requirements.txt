@@ -14,9 +14,20 @@ pillow==10.0.0
 torch>=2.0.0
 torchvision>=0.15.0
 
-# Additional utilities
+# Dashboard and system utilities
 matplotlib==3.7.2
 requests==2.31.0
+
+# Additional standard library modules (included with Python)
+# threading - For background serial data reading
+# re - For parsing sensor data from ESP32
+# datetime - For timestamps and collection logging
+# time - For timing operations and heartbeat
+# sys - For system operations and exit handling
+# os - For file system operations
+
+# Development and debugging tools
+colorama==0.4.6  # For colored console output (optional)
 
 # Optional: For enhanced YOLO features
 # onnx==1.14.1
@@ -27,3 +38,6 @@ requests==2.31.0
 #
 # For GPU acceleration (optional):
 # pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+#
+# For development with better console output:
+# pip install colorama
