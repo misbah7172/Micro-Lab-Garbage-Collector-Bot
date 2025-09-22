@@ -7,7 +7,7 @@ An AI-powered autonomous garbage collection robot using ESP32, computer vision, 
 - **AI-based Object Detection**: Utilizes YOLO with a laptop webcam for real-time trash detection
 - **Autonomous Operation**: Runs without manual intervention using ESP32 microcontroller
 - **Environmental Monitoring**: Tracks temperature, humidity, and smoke levels
-- **Remote Access**: Controlled and monitored via the Blynk IoT app
+- **USB Serial Communication**: Direct laptop-to-ESP32 communication via USB
 - **Failsafe Mechanism**: Automatically stops if communication is lost
 - **Robotic Arm**: Picks up and disposes of detected trash automatically
 
@@ -18,7 +18,7 @@ An AI-powered autonomous garbage collection robot using ESP32, computer vision, 
 3. **Obstacle Avoidance**: Uses ultrasonic sensors for safe movement
 4. **Trash Collection**: Picks up trash using a 3-axis robotic arm with servo motors
 5. **Trash Disposal**: Places collected trash into a designated bin
-6. **Sensor Data Reporting**: Sends environmental data to the Blynk app
+6. **Environmental Monitoring**: Logs temperature, humidity, and smoke data to serial output
 7. **Real-time Monitoring**: Live video feed with detection overlays
 
 
@@ -27,13 +27,12 @@ An AI-powered autonomous garbage collection robot using ESP32, computer vision, 
 2. **Python script** processes frames using YOLO AI model
 3. **Detection results** sent to ESP32 via USB serial connection
 4. **ESP32 controls** robot movement, arm, and sensors
-5. **Environmental data** sent to Blynk app for monitoring
+5. **Environmental data** logged to serial monitor for debugging
 6. **Real-time feedback** displayed on laptop screen
 
 ### Communication Protocol
 - **Laptop → ESP32**: Movement commands (`F`, `R`, `S`, `C`, `H`)
-- **ESP32 → Blynk**: Sensor data and status updates
-- **Blynk → ESP32**: Remote control commands
+- **ESP32 → Laptop**: Status messages and sensor data via serial
 
 ##  Wiring Diagram
 
@@ -90,7 +89,6 @@ ESP32 3.3V   →    Sensors VCC
 
 3. **Install Required Libraries**:
    ```
-   - Blynk (for IoT connectivity)
    - DHT sensor library (for temperature/humidity)
    - ESP32Servo (for servo motor control)
    ```
@@ -109,23 +107,20 @@ ESP32 3.3V   →    Sensors VCC
    python -c "import cv2, ultralytics, serial, supervision; print('All packages installed successfully')"
    ```
 
-### 3. Blynk Setup
+### 3. ESP32 Configuration
 
-1. **Download Blynk App** (iOS/Android)
-2. **Create New Project**:
-   - Choose ESP32 as device
-   - Copy the Auth Token
-3. **Add Widgets**:
-   - V0: Button (System ON/OFF)
-   - V1: Value Display (Temperature)
-   - V2: Value Display (Humidity)
-   - V3: Value Display (Smoke Level)
-   - V4: Value Display (Distance)
-   - V5: Value Display (System Status)
-   - V6: Value Display (Robot State)
-   - V7: Button (Reset Arm)
+1. **Configure ESP32 code**:
+   ```cpp
+   // No additional configuration needed for basic operation
+   // The code is ready to use with USB serial communication
+   ```
 
-## 🛠️ Hardware Requirements
+2. **Upload ESP32 code**:
+   - Select "ESP32 Dev Module" as board
+   - Choose correct COM port
+   - Upload the code
+
+##  Hardware Requirements
 
 ### Laptop/Computer (AI Processing Station)
 | Component | Specification | Purpose |
@@ -170,12 +165,8 @@ ESP32 3.3V   →    Sensors VCC
 ### Step 2: Software Configuration
 
 1. **Configure ESP32 code**:
-   ```cpp
-   // Update these in MicroLabGarbageCollector.ino
-   #define BLYNK_AUTH_TOKEN "YOUR_AUTH_TOKEN"
-   const char* ssid = "YOUR_WIFI_SSID";
-   const char* password = "YOUR_WIFI_PASSWORD";
-   ```
+   - No WiFi or IoT setup required
+   - Code is ready for USB serial communication
 
 2. **Upload ESP32 code**:
    - Select "ESP32 Dev Module" as board
@@ -210,14 +201,14 @@ ESP32 3.3V   →    Sensors VCC
 2. **Position laptop**:
    - Place laptop where camera has clear view of operating area
    - Ensure laptop is plugged in or has sufficient battery
-   - Position for optimal WiFi signal (for Blynk connectivity)
+   - Keep USB cable connected to ESP32
 
 ### Starting the System
 
 1. **Power on the robot**:
    - Turn on robot battery power switch
-   - ESP32 should connect to WiFi (LED indicator)
-   - Check ESP32 serial connection to laptop
+   - ESP32 should initialize (check status LED)
+   - Verify ESP32 serial connection to laptop
 
 2. **Start Python detection on laptop**:
    ```bash
@@ -228,15 +219,15 @@ ESP32 3.3V   →    Sensors VCC
    - Camera window should open showing live feed
    - Wait for "System initialized successfully!" message
 
-3. **Verify Blynk connection**:
-   - Open Blynk app on phone
-   - Check system status (should show "ONLINE")
-   - Environmental sensors should display data
+3. **Monitor system status**:
+   - Check serial monitor in Arduino IDE for ESP32 status
+   - Environmental sensor data will be logged to serial output
+   - Watch for any error messages or warnings
 
 4. **Activate autonomous mode**:
-   - Press System ON button in Blynk app, OR
    - System automatically starts when Python script detects trash
-   - Robot should begin searching for garbage
+   - Robot will begin searching for garbage
+   - Monitor progress through laptop video feed
 
 ### Operation Workflow
 
@@ -256,8 +247,8 @@ ESP32 3.3V   →    Sensors VCC
    - Robotic arm activates for collection
 
 4. **Monitoring Phase**:
-   - Environmental data sent to Blynk app
-   - Real-time robot status available on phone
+   - Environmental data logged to ESP32 serial monitor
+   - System status messages printed to serial output
    - Live video feed on laptop shows progress
 
 ### Operation Modes
@@ -269,27 +260,27 @@ ESP32 3.3V   →    Sensors VCC
 
 ### Manual Controls
 
-**Keyboard Controls** (when Python script is active):
+**Manual Controls** (when Python script is active):
 - `ESC`: Emergency stop and exit
 - `S`: Stop robot movement
 - `C`: Force trash collection sequence
 
-**Blynk App Controls**:
-- System ON/OFF button
-- Reset Arm button
-- Real-time sensor monitoring
+**Serial Monitor Controls** (Arduino IDE):
+- View real-time sensor data
+- Monitor system status messages
+- Debug communication issues
 
 ##  Monitoring
 
 ### Environmental Data
-- **Temperature**: Real-time monitoring with alerts
-- **Humidity**: Environmental conditions
-- **Smoke Level**: Fire/smoke detection
+- **Temperature**: Real-time monitoring via serial output
+- **Humidity**: Environmental conditions logged
+- **Smoke Level**: Fire/smoke detection with alerts
 - **Distance**: Obstacle detection range
 
 ### System Status
-- **Connection Status**: Online/Offline
-- **Robot State**: Searching/Moving/Collecting
+- **Connection Status**: USB serial communication status
+- **Robot State**: Searching/Moving/Collecting (via serial messages)
 - **Detection Count**: Number of items detected
 - **Frame Rate**: Video processing speed
 
@@ -297,10 +288,11 @@ ESP32 3.3V   →    Sensors VCC
 
 ### Common Issues
 
-1. **ESP32 won't connect to WiFi**:
-   - Check SSID and password
-   - Ensure WiFi is 2.4GHz
-   - Check signal strength
+1. **ESP32 won't start properly**:
+   - Check battery voltage (should be 7.4V)
+   - Verify USB connection to laptop
+   - Check serial monitor for error messages
+   - Ensure all libraries are installed
 
 2. **Serial communication fails**:
    - Verify COM port in Device Manager
@@ -364,8 +356,8 @@ if (getDistance() > 20) {
 ### Adding New Sensors
 1. Define new pins in ESP32 code
 2. Add sensor reading functions
-3. Update Blynk virtual pins
-4. Modify monitoring dashboard
+3. Update serial output messages
+4. Test sensor functionality
 
 ##  Maintenance
 
@@ -374,7 +366,7 @@ if (getDistance() > 20) {
 - Motor brush condition
 - Sensor calibration
 - Servo arm alignment
-- WiFi connection stability
+- USB connection stability
 
 ### Cleaning
 - Clean camera lens regularly

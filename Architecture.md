@@ -9,9 +9,9 @@
 │ • AI Detection  │                  │ • Motor Control │
 │ • Python Script │                  │ • Sensors       │
 │ • Live Video    │                  │ • Robotic Arm   │
-└─────────────────┘                  │ • Blynk IoT     │
+└─────────────────┘                  │ • Serial Output │
                                      └─────────────────┘
-```
+                                     
 
 ### Complete Wiring Schematic
 

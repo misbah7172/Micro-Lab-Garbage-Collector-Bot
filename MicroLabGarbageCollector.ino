@@ -1,16 +1,5 @@
-#include <WiFi.h>
-#include <BlynkSimpleEsp32.h>
 #include <DHT.h>
 #include <ESP32Servo.h>
-
-// Blynk credentials
-#define BLYNK_TEMPLATE_ID "YOUR_TEMPLATE_ID"
-#define BLYNK_DEVICE_NAME "GarbageCollector"
-#define BLYNK_AUTH_TOKEN "YOUR_AUTH_TOKEN"
-
-// WiFi credentials
-const char* ssid = "Salim_Hall";
-const char* password = "154089@UIU";
 
 // Motor driver pins (L298N)
 #define MOTOR_LEFT_FORWARD 2
@@ -46,10 +35,8 @@ Servo servoGripper;
 // System variables
 bool systemActive = true;
 unsigned long lastSensorRead = 0;
-unsigned long lastBlynkUpdate = 0;
 unsigned long lastHeartbeat = 0;
 const unsigned long SENSOR_INTERVAL = 2000;
-const unsigned long BLYNK_INTERVAL = 5000;
 const unsigned long HEARTBEAT_TIMEOUT = 10000;
 
 // Movement and arm positions
@@ -87,26 +74,11 @@ void setup() {
   // Initialize sensors
   dht.begin();
   
-  // Connect to WiFi
-  WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(1000);
-    Serial.println("Connecting to WiFi...");
-    digitalWrite(STATUS_LED, !digitalRead(STATUS_LED));
-  }
-  Serial.println("WiFi connected!");
-  digitalWrite(STATUS_LED, HIGH);
-  
-  // Initialize Blynk
-  Blynk.begin(BLYNK_AUTH_TOKEN, ssid, password);
-  
   Serial.println("Micro Lab Garbage Collector Ready!");
   stopMotors();
 }
 
 void loop() {
-  Blynk.run();
-  
   // Check for serial commands from Python script
   if (Serial.available()) {
     char command = Serial.read();
@@ -123,7 +95,6 @@ void loop() {
       Serial.println("Communication lost - Stopping system");
       stopMotors();
       systemActive = false;
-      Blynk.virtualWrite(V5, "OFFLINE");
     }
   }
   
@@ -131,12 +102,6 @@ void loop() {
   if (millis() - lastSensorRead > SENSOR_INTERVAL) {
     readEnvironmentalSensors();
     lastSensorRead = millis();
-  }
-  
-  // Update Blynk
-  if (millis() - lastBlynkUpdate > BLYNK_INTERVAL) {
-    updateBlynk();
-    lastBlynkUpdate = millis();
   }
   
   delay(50);
@@ -322,45 +287,5 @@ void readEnvironmentalSensors() {
   if (temperature > 50 || smokeLevel > 500) {
     Serial.println("WARNING: High temperature or smoke detected!");
     stopMotors();
-    Blynk.logEvent("danger_alert", "High temperature or smoke detected!");
-  }
-}
-
-// Blynk functions
-void updateBlynk() {
-  float temperature = dht.readTemperature();
-  float humidity = dht.readHumidity();
-  int smokeLevel = analogRead(SMOKE_SENSOR_PIN);
-  long distance = getDistance();
-  
-  if (!isnan(temperature) && !isnan(humidity)) {
-    Blynk.virtualWrite(V1, temperature);
-    Blynk.virtualWrite(V2, humidity);
-  }
-  
-  Blynk.virtualWrite(V3, smokeLevel);
-  Blynk.virtualWrite(V4, distance);
-  Blynk.virtualWrite(V5, systemActive ? "ONLINE" : "OFFLINE");
-  Blynk.virtualWrite(V6, isCollecting ? "COLLECTING" : "SEARCHING");
-}
-
-// Blynk virtual pin handlers
-BLYNK_WRITE(V0) {
-  int value = param.asInt();
-  if (value == 1) {
-    systemActive = true;
-    Serial.println("System activated via Blynk");
-  } else {
-    systemActive = false;
-    stopMotors();
-    Serial.println("System deactivated via Blynk");
-  }
-}
-
-BLYNK_WRITE(V7) {
-  int value = param.asInt();
-  if (value == 1 && systemActive) {
-    resetArmPosition();
-    Serial.println("Arm reset via Blynk");
   }
 }
