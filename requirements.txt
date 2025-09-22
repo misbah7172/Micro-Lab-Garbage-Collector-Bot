@@ -1,0 +1,29 @@
+# Core computer vision and AI packages
+opencv-python==4.8.1.78
+ultralytics==8.0.196
+supervision==0.16.0
+
+# Serial communication
+pyserial==3.5
+
+# Image processing and utilities
+numpy==1.24.3
+pillow==10.0.0
+
+# PyTorch (required by YOLO)
+torch>=2.0.0
+torchvision>=0.15.0
+
+# Additional utilities
+matplotlib==3.7.2
+requests==2.31.0
+
+# Optional: For enhanced YOLO features
+# onnx==1.14.1
+# onnxruntime==1.15.1
+
+# Note: Install these packages using:
+# pip install -r requirements.txt
+#
+# For GPU acceleration (optional):
+# pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
