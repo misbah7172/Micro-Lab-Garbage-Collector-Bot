@@ -21,13 +21,71 @@ import base64
 from flask import Flask, render_template, Response, jsonify
 from flask_socketio import SocketIO, emit
 import json
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Suppress warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
 
+# Configuration from .env file
+class Config:
+    # AI Model Configuration
+    MODEL_PATH = os.getenv('MODEL_PATH', 'best.pt')
+    MODEL_INPUT_SIZE = int(os.getenv('MODEL_INPUT_SIZE', '480'))
+    MODEL_CONFIDENCE_THRESHOLD = float(os.getenv('MODEL_CONFIDENCE_THRESHOLD', '0.5'))
+    BOTTLE_CLASS_ID = int(os.getenv('BOTTLE_CLASS_ID', '39'))
+    
+    # Camera Configuration
+    CAMERA_INDEX = int(os.getenv('CAMERA_INDEX', '0'))
+    CAMERA_WIDTH = int(os.getenv('CAMERA_WIDTH', '640'))
+    CAMERA_HEIGHT = int(os.getenv('CAMERA_HEIGHT', '480'))
+    CAMERA_FPS = int(os.getenv('CAMERA_FPS', '30'))
+    JPEG_QUALITY = int(os.getenv('JPEG_QUALITY', '85'))
+    
+    # Serial Communication Configuration
+    SERIAL_PORT = os.getenv('SERIAL_PORT', 'AUTO')
+    SERIAL_BAUD_RATE = int(os.getenv('SERIAL_BAUD_RATE', '115200'))
+    SERIAL_TIMEOUT = float(os.getenv('SERIAL_TIMEOUT', '1.0'))
+    AUTO_DETECT_PORTS = os.getenv('AUTO_DETECT_PORTS', 'CH340,CP210,USB').split(',')
+    
+    # Web Server Configuration
+    WEB_HOST = os.getenv('WEB_HOST', '0.0.0.0')
+    WEB_PORT = int(os.getenv('WEB_PORT', '5000'))
+    WEB_DEBUG = os.getenv('WEB_DEBUG', 'False').lower() == 'true'
+    SECRET_KEY = os.getenv('SECRET_KEY', 'micro_lab_garbage_collector_2025')
+    
+    # System Performance
+    TARGET_FPS = int(os.getenv('TARGET_FPS', '30'))
+    FRAME_PROCESSING_DELAY = float(os.getenv('FRAME_PROCESSING_DELAY', '0.033'))
+    SERIAL_READ_DELAY = float(os.getenv('SERIAL_READ_DELAY', '0.1'))
+    
+    # Robot Commands
+    COMMAND_FORWARD = os.getenv('COMMAND_FORWARD', 'F')
+    COMMAND_ROTATE = os.getenv('COMMAND_ROTATE', 'R')
+    COMMAND_STOP = os.getenv('COMMAND_STOP', 'S')
+    COMMAND_COLLECT = os.getenv('COMMAND_COLLECT', 'C')
+    COMMAND_HEARTBEAT = os.getenv('COMMAND_HEARTBEAT', 'H')
+    
+    # Default Sensor Values
+    DEFAULT_TEMPERATURE = float(os.getenv('DEFAULT_TEMPERATURE', '24.5'))
+    DEFAULT_HUMIDITY = float(os.getenv('DEFAULT_HUMIDITY', '60.0'))
+    DEFAULT_SMOKE_LEVEL = int(os.getenv('DEFAULT_SMOKE_LEVEL', '150'))
+    DEFAULT_DISTANCE = int(os.getenv('DEFAULT_DISTANCE', '45'))
+    
+    # Dashboard Configuration
+    DASHBOARD_TITLE = os.getenv('DASHBOARD_TITLE', 'Micro Lab Garbage Collector')
+    DASHBOARD_SUBTITLE = os.getenv('DASHBOARD_SUBTITLE', 'AI-Powered Autonomous Cleaning System - Live Dashboard')
+    
+    # Development/Debug Settings
+    MOCK_ESP32 = os.getenv('MOCK_ESP32', 'False').lower() == 'true'
+    MOCK_CAMERA = os.getenv('MOCK_CAMERA', 'False').lower() == 'true'
+    VERBOSE_OUTPUT = os.getenv('VERBOSE_OUTPUT', 'True').lower() == 'true'
+
 # Flask setup
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'micro_lab_garbage_collector_2025'
+app.config['SECRET_KEY'] = Config.SECRET_KEY
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Global variables for system state
@@ -42,10 +100,10 @@ dashboard_data = {
     'last_command': 'None',
     'frame_rate': 0,
     'system_uptime': 0,
-    'temperature': 24.5,
-    'humidity': 60.0,
-    'smoke_level': 150,
-    'distance': 45,
+    'temperature': Config.DEFAULT_TEMPERATURE,
+    'humidity': Config.DEFAULT_HUMIDITY,
+    'smoke_level': Config.DEFAULT_SMOKE_LEVEL,
+    'distance': Config.DEFAULT_DISTANCE,
     'camera_status': 'OFFLINE',
     'ai_model_status': 'LOADING'
 }
@@ -63,27 +121,34 @@ def find_esp32_port():
     """Automatically find ESP32 port on Windows"""
     ports = serial.tools.list_ports.comports()
     for port in ports:
-        if "CH340" in port.description or "CP210" in port.description or "USB" in port.description:
-            return port.device
+        for detect_string in Config.AUTO_DETECT_PORTS:
+            if detect_string in port.description:
+                return port.device
     return None
 
 def setup_serial_connection():
     """Setup serial connection with automatic port detection"""
     global ser, dashboard_data
     
-    auto_port = find_esp32_port()
+    if Config.MOCK_ESP32:
+        print("🔧 Mock ESP32 mode enabled - skipping serial connection")
+        dashboard_data['connection_status'] = 'MOCK'
+        return None
     
-    if auto_port:
-        print(f"Found potential ESP32 on port: {auto_port}")
-        serial_port = auto_port
+    if Config.SERIAL_PORT == 'AUTO':
+        auto_port = find_esp32_port()
+        if auto_port:
+            print(f"Found potential ESP32 on port: {auto_port}")
+            serial_port = auto_port
+        else:
+            serial_port = 'COM3'  # Fallback
+            print(f"Auto-detection failed, trying fallback port: {serial_port}")
     else:
-        serial_port = 'COM3'
-        print(f"Auto-detection failed, trying manual port: {serial_port}")
-    
-    baud_rate = 115200
+        serial_port = Config.SERIAL_PORT
+        print(f"Using configured serial port: {serial_port}")
     
     try:
-        ser = serial.Serial(serial_port, baud_rate, timeout=1)
+        ser = serial.Serial(serial_port, Config.SERIAL_BAUD_RATE, timeout=Config.SERIAL_TIMEOUT)
         print(f"✓ Connected to ESP32 on {serial_port}")
         dashboard_data['connection_status'] = 'CONNECTED'
         return ser
@@ -107,15 +172,21 @@ def load_ai_model():
             return original_load(*args, **kwargs)
         torch.load = trusted_load
         
-        model_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'best.pt')
+        # Use configured model path
+        if os.path.isabs(Config.MODEL_PATH):
+            model_path = Config.MODEL_PATH
+        else:
+            model_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), Config.MODEL_PATH)
         
         if not os.path.exists(model_path):
             print(f"Model file not found at: {model_path}")
+            print(f"Current working directory: {os.getcwd()}")
+            print(f"Script directory: {os.path.dirname(os.path.abspath(__file__))}")
             dashboard_data['ai_model_status'] = 'ERROR'
             return None
         
         model = YOLO(model_path)
-        print("YOLO model loaded successfully (trusted source method)")
+        print(f"YOLO model loaded successfully from: {model_path}")
         dashboard_data['ai_model_status'] = 'READY'
         return model
         
@@ -128,13 +199,18 @@ def setup_camera():
     """Setup camera with error handling"""
     global cap, dashboard_data
     
+    if Config.MOCK_CAMERA:
+        print("🔧 Mock camera mode enabled - skipping camera setup")
+        dashboard_data['camera_status'] = 'MOCK'
+        return None
+    
     try:
-        cap = cv2.VideoCapture(0)
+        cap = cv2.VideoCapture(Config.CAMERA_INDEX)
         if cap.isOpened():
-            cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-            cap.set(cv2.CAP_PROP_FPS, 30)
-            print("✓ Camera initialized successfully")
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, Config.CAMERA_WIDTH)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, Config.CAMERA_HEIGHT)
+            cap.set(cv2.CAP_PROP_FPS, Config.CAMERA_FPS)
+            print(f"✓ Camera initialized successfully (Index: {Config.CAMERA_INDEX}, Resolution: {Config.CAMERA_WIDTH}x{Config.CAMERA_HEIGHT})")
             dashboard_data['camera_status'] = 'ONLINE'
             return cap
         else:
@@ -204,17 +280,24 @@ def serial_reader():
             print(f"Serial read error: {e}")
             break
         
-        time.sleep(0.1)
+        time.sleep(Config.SERIAL_READ_DELAY)
 
 def send_command(command):
     """Send command to ESP32"""
     global ser, dashboard_data
     
+    if Config.MOCK_ESP32:
+        dashboard_data['last_command'] = command
+        if Config.VERBOSE_OUTPUT:
+            print(f"Mock ESP32: Command {command} sent")
+        return True
+    
     if ser and ser.is_open:
         try:
             ser.write(command.encode())
             dashboard_data['last_command'] = command
-            print(f"Sent command to ESP32: {command}")
+            if Config.VERBOSE_OUTPUT:
+                print(f"Sent command to ESP32: {command}")
             return True
         except Exception as e:
             print(f"Error sending command: {e}")
@@ -243,19 +326,24 @@ def generate_frames():
             dashboard_data['system_uptime'] = round(current_time - start_time, 1)
             
             # Run AI detection
-            results = model(frame, imgsz=480, verbose=False)
+            results = model(frame, imgsz=Config.MODEL_INPUT_SIZE, verbose=False)
             detections = sv.Detections.from_ultralytics(results[0])
             
-            # Filter for bottles only
-            bottle_detections = detections[detections.class_id == 39]  # 39 is bottle class in COCO
+            # Show all detections for debugging (temporarily disabled bottle filtering)
+            # bottle_detections = detections[detections.class_id == Config.BOTTLE_CLASS_ID]
+            bottle_detections = detections  # Show all detections like test.py
             
             if len(bottle_detections) > 0:
                 detection_count += len(bottle_detections)
-                dashboard_data['detections_count'] = detection_count
+                dashboard_data['detections_count'] = len(bottle_detections)  # Show current frame detections
+                dashboard_data['total_detections'] = detection_count         # Keep running total
                 
                 # Send movement command
-                send_command('F')  # Forward
-                print(f"Trash detected! (Count: {detection_count}) Moving forward...")
+                send_command(Config.COMMAND_FORWARD)
+                if Config.VERBOSE_OUTPUT:
+                    print(f"Objects detected! (Current: {len(bottle_detections)}, Total: {detection_count}) Moving forward...")
+            else:
+                dashboard_data['detections_count'] = 0  # No detections in current frame
             
             # Annotate frame
             box_annotator = sv.BoxAnnotator()
@@ -265,14 +353,21 @@ def generate_frames():
             annotated_frame = label_annotator.annotate(scene=annotated_frame, detections=bottle_detections)
             
             # Convert frame to base64 for web streaming
-            _, buffer = cv2.imencode('.jpg', annotated_frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
+            _, buffer = cv2.imencode('.jpg', annotated_frame, [cv2.IMWRITE_JPEG_QUALITY, Config.JPEG_QUALITY])
             current_frame = base64.b64encode(buffer).decode('utf-8')
             
-            # Emit data to web clients
-            socketio.emit('frame_update', {'frame': current_frame})
-            socketio.emit('data_update', dashboard_data)
+            # Ensure dashboard data consistency before emission
+            dashboard_data['current_detections'] = len(bottle_detections)  # Add explicit current count
+            dashboard_data['robot_status'] = 'DETECTING' if len(bottle_detections) > 0 else 'SCANNING'
             
-            time.sleep(0.033)  # ~30 FPS
+            # Emit data to web clients with error handling
+            try:
+                socketio.emit('frame_update', {'frame': current_frame})
+                socketio.emit('data_update', dashboard_data)
+            except Exception as emit_error:
+                print(f"WebSocket emission error: {emit_error}")
+            
+            time.sleep(Config.FRAME_PROCESSING_DELAY)
             
         except Exception as e:
             print(f"Frame processing error: {e}")
@@ -288,10 +383,36 @@ def get_data():
     """API endpoint for dashboard data"""
     return jsonify(dashboard_data)
 
+@app.route('/api/config')
+def get_config():
+    """API endpoint for system configuration"""
+    config_data = {
+        'model_path': Config.MODEL_PATH,
+        'camera_index': Config.CAMERA_INDEX,
+        'camera_resolution': f"{Config.CAMERA_WIDTH}x{Config.CAMERA_HEIGHT}",
+        'serial_port': Config.SERIAL_PORT,
+        'serial_baud': Config.SERIAL_BAUD_RATE,
+        'commands': {
+            'forward': Config.COMMAND_FORWARD,
+            'rotate': Config.COMMAND_ROTATE,
+            'stop': Config.COMMAND_STOP,
+            'collect': Config.COMMAND_COLLECT,
+            'heartbeat': Config.COMMAND_HEARTBEAT
+        },
+        'mock_mode': {
+            'esp32': Config.MOCK_ESP32,
+            'camera': Config.MOCK_CAMERA
+        }
+    }
+    return jsonify(config_data)
+
 @app.route('/api/command/<command>')
 def send_command_api(command):
     """API endpoint for sending commands"""
-    if command in ['F', 'R', 'S', 'C', 'H']:
+    valid_commands = [Config.COMMAND_FORWARD, Config.COMMAND_ROTATE, Config.COMMAND_STOP, 
+                     Config.COMMAND_COLLECT, Config.COMMAND_HEARTBEAT]
+    
+    if command in valid_commands:
         success = send_command(command)
         return jsonify({'success': success, 'command': command})
     return jsonify({'success': False, 'error': 'Invalid command'})
@@ -311,7 +432,10 @@ def handle_disconnect():
 def handle_command(data):
     """Handle command from web interface"""
     command = data.get('command')
-    if command in ['F', 'R', 'S', 'C', 'H']:
+    valid_commands = [Config.COMMAND_FORWARD, Config.COMMAND_ROTATE, Config.COMMAND_STOP, 
+                     Config.COMMAND_COLLECT, Config.COMMAND_HEARTBEAT]
+    
+    if command in valid_commands:
         success = send_command(command)
         emit('command_response', {'success': success, 'command': command})
 
@@ -319,7 +443,12 @@ def initialize_system():
     """Initialize all system components"""
     global ser, cap, model, dashboard_data
     
-    print("🚀 Initializing Micro Lab Garbage Collector Web Dashboard...")
+    print(f"🚀 Initializing {Config.DASHBOARD_TITLE}...")
+    print(f"📋 Configuration loaded from .env file")
+    print(f"   - Model: {Config.MODEL_PATH}")
+    print(f"   - Camera: Index {Config.CAMERA_INDEX} ({Config.CAMERA_WIDTH}x{Config.CAMERA_HEIGHT})")
+    print(f"   - Serial: {Config.SERIAL_PORT} @ {Config.SERIAL_BAUD_RATE} baud")
+    print(f"   - Web Server: {Config.WEB_HOST}:{Config.WEB_PORT}")
     
     # Load AI model
     print("Loading AI model...")
@@ -334,7 +463,7 @@ def initialize_system():
     ser = setup_serial_connection()
     
     # Start serial reader thread
-    if ser:
+    if ser and not Config.MOCK_ESP32:
         serial_thread = threading.Thread(target=serial_reader, daemon=True)
         serial_thread.start()
     
@@ -348,15 +477,16 @@ if __name__ == '__main__':
         initialize_system()
         
         # Start camera processing in background
-        if cap and model:
+        if (cap and model) or (Config.MOCK_CAMERA and model):
             camera_thread = threading.Thread(target=generate_frames, daemon=True)
             camera_thread.start()
         
-        print("📱 Dashboard available at: http://localhost:5000")
+        print(f"📱 Dashboard available at: http://localhost:{Config.WEB_PORT}")
+        print(f"🌍 Also available at: http://{Config.WEB_HOST}:{Config.WEB_PORT}")
         print("Press Ctrl+C to stop the system")
         
         # Start Flask web server
-        socketio.run(app, host='0.0.0.0', port=5000, debug=False)
+        socketio.run(app, host=Config.WEB_HOST, port=Config.WEB_PORT, debug=Config.WEB_DEBUG)
         
     except KeyboardInterrupt:
         print("\n🛑 Keyboard interrupt received - Shutting down...")
@@ -365,16 +495,16 @@ if __name__ == '__main__':
     finally:
         # Cleanup
         print("Cleaning up system...")
-        if ser and ser.is_open:
+        if ser and ser.is_open and not Config.MOCK_ESP32:
             try:
-                ser.write(b'S')  # Send stop command
+                ser.write(Config.COMMAND_STOP.encode())  # Send stop command
                 time.sleep(0.5)
                 ser.close()
                 print("✓ Serial connection closed")
             except:
                 pass
         
-        if cap:
+        if cap and not Config.MOCK_CAMERA:
             cap.release()
             print("✓ Camera released")
         

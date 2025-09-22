@@ -500,7 +500,18 @@
             updateElement('last-command', data.last_command);
 
             // Detection & Collection
-            updateElement('live-detections', data.detections_count);
+            updateElement('live-detections', detectionCount);
+            
+            // Add visual feedback for live detections panel
+            const liveDetectionElement = document.getElementById('live-detections');
+            if (detectionCount > 0) {
+                liveDetectionElement.className = 'metric-value status-online';
+                liveDetectionElement.style.animation = 'pulse 1s infinite';
+            } else {
+                liveDetectionElement.className = 'metric-value status-info';
+                liveDetectionElement.style.animation = '';
+            }
+            
             updateElement('total-collected', data.total_collected);
             updateElement('collection-progress', data.collection_in_progress ? 'YES' : 'NO');
             updateElement('last-collection', data.last_collection_time);
@@ -514,7 +525,21 @@
             // Performance
             updateElement('frame-rate', data.frame_rate);
             updateElement('fps-display', data.frame_rate);
-            updateElement('detection-count', data.detections_count);
+            
+            // Detection count with multiple fallback fields
+            const detectionCount = data.current_detections !== undefined ? data.current_detections : 
+                                 data.detections_count !== undefined ? data.detections_count : 0;
+            updateElement('detection-count', detectionCount);
+            
+            // Add visual feedback for active detection
+            const detectionElement = document.getElementById('detection-count');
+            if (detectionCount > 0) {
+                detectionElement.style.color = '#00ff41';
+                detectionElement.style.fontWeight = 'bold';
+            } else {
+                detectionElement.style.color = '#ffffff';
+                detectionElement.style.fontWeight = 'normal';
+            }
 
             // Camera status
             const cameraStatusElement = document.getElementById('camera-status');

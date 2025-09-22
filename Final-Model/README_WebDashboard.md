@@ -1,9 +1,9 @@
-# 🌐 Micro Lab Garbage Collector - Web Dashboard
+#  Micro Lab Garbage Collector - Web Dashboard
 
 ## Overview
 This is a modern, browser-based dashboard for the AI-powered garbage collection robot. The dashboard provides real-time monitoring and control through a clean, responsive web interface.
 
-## 🚀 Quick Start
+##  Quick Start
 
 ### 1. Install Dependencies
 ```bash
@@ -19,15 +19,15 @@ python web_dashboard.py
 ### 3. Open Dashboard
 Navigate to: **http://localhost:5000**
 
-## 📊 Dashboard Features
+##  Dashboard Features
 
-### 🎥 **Camera Feed Panel**
+###  **Camera Feed Panel**
 - **Live video stream** from the robot's camera in a dedicated panel
 - **Real-time AI detection** with bounding boxes around detected objects
 - **Performance overlay** showing FPS and detection count
 - **Camera status indicator** (Online/Offline)
 
-### ⚙️ **System Status Panel**
+###  **System Status Panel**
 - **Robot Status**: Current operational state (READY, MOVING, COLLECTING, etc.)
 - **Movement Direction**: Current movement (FORWARD, ROTATING, STOPPED, COLLECTING)
 - **ESP32 Connection**: Serial connection status with microcontroller
@@ -35,13 +35,13 @@ Navigate to: **http://localhost:5000**
 - **System Uptime**: How long the system has been running
 - **Last Command**: Most recent command sent to robot
 
-### 🎯 **Detection & Collection Panel**
+###  **Detection & Collection Panel**
 - **Live Detections**: Current number of objects detected
 - **Items Collected**: Total count of successfully collected items
 - **Collection Progress**: Whether collection is currently in progress
 - **Last Collection Time**: Timestamp of most recent collection
 
-### 🌡️ **Environmental Sensors Panel**
+###  **Environmental Sensors Panel**
 - **Temperature**: Current ambient temperature from DHT22 sensor
 - **Humidity**: Current humidity percentage from DHT22 sensor
 - **Smoke Level**: Gas/smoke detection level from MQ-2 sensor
@@ -54,13 +54,13 @@ Navigate to: **http://localhost:5000**
 - **Collect**: Trigger collection sequence
 - **Heartbeat**: Send keepalive signal
 
-### 📈 **Performance Metrics Panel**
+###  **Performance Metrics Panel**
 - **FPS**: Real-time frames per second of camera processing
 - **Detection Rate**: Efficiency percentage of AI detection
 - **System Load**: Visual progress bar of system resource usage
 - **Memory Usage**: Visual progress bar of memory consumption
 
-## 🎨 Design Features
+##  Design Features
 
 ### **Modern UI Elements**
 - **Glass-morphism design** with backdrop blur effects
@@ -84,7 +84,7 @@ Navigate to: **http://localhost:5000**
   - `C` or `Space`: Collect
   - `H`: Heartbeat
 
-## 🔧 Technical Architecture
+##  Technical Architecture
 
 ### **Backend (Flask + SocketIO)**
 - **Flask web server** hosting the dashboard interface
@@ -108,21 +108,21 @@ Web Browser ←→ Flask Server ←→ ESP32 Robot
  Dashboard      SocketIO      Serial USB
 ```
 
-## 📱 Mobile Responsiveness
+##  Mobile Responsiveness
 
 The dashboard automatically adapts to different screen sizes:
 - **Desktop**: Full 3-column layout with all panels visible
 - **Tablet**: 2-column layout with camera panel spanning full width
 - **Mobile**: Single column stacked layout for optimal mobile viewing
 
-## 🔒 Security Features
+##  Security Features
 
 - **PyTorch model loading** with trusted source handling
 - **CORS protection** for cross-origin requests
 - **Input validation** for robot commands
 - **Error handling** and graceful degradation
 
-## 🚨 Troubleshooting
+##  Troubleshooting
 
 ### Camera Issues
 - Ensure camera is connected and not being used by other applications
@@ -144,7 +144,7 @@ The dashboard automatically adapts to different screen sizes:
 - Check if another application is using port 5000
 - Try accessing via `127.0.0.1:5000` instead of `localhost:5000`
 
-## 🎯 Usage Tips
+##  Usage Tips
 
 1. **Keep the dashboard open** while operating the robot for real-time monitoring
 2. **Use keyboard shortcuts** for quick robot control during operation
@@ -152,7 +152,7 @@ The dashboard automatically adapts to different screen sizes:
 4. **Watch the camera feed** to verify AI detection accuracy
 5. **Check connection status** regularly to ensure stable communication
 
-## 🔄 System Requirements
+##  System Requirements
 
 - **Python 3.8+** with required packages installed
 - **USB camera** (built-in webcam or external)
@@ -160,7 +160,7 @@ The dashboard automatically adapts to different screen sizes:
 - **Modern web browser** (Chrome, Firefox, Safari, Edge)
 - **Windows 10/11** (tested environment)
 
-## 📞 Support
+##  Support
 
 For technical support or questions about the web dashboard:
 1. Check the terminal output for error messages
@@ -170,4 +170,4 @@ For technical support or questions about the web dashboard:
 
 ---
 
-**🤖 Micro Lab Garbage Collector - Making the world cleaner with AI!**
+** Micro Lab Garbage Collector - Making the world cleaner with AI!**
