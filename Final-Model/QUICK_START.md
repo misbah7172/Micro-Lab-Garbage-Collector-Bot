@@ -1,4 +1,4 @@
-# 🔄 Quick Model Switching Examples
+#  Quick Model Switching Examples
 
 ## Example 1: Switch to different model file
 ```bash
@@ -44,7 +44,7 @@ MODEL_PATH=yolov8s.pt
 MODEL_PATH=models/my_custom_model.pt
 ```
 
-## 🚀 Quick Start Commands
+##  Quick Start Commands
 
 1. **List available models:**
    ```bash

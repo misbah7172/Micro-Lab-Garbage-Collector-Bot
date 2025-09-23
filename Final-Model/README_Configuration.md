@@ -1,20 +1,20 @@
-# 🔧 Environment Configuration Guide
+# Environment Configuration Guide
 
 ## Overview
 The `.env` file contains all configurable parameters for the Micro Lab Garbage Collector system. This allows you to easily change settings like model paths, camera settings, and serial ports without modifying the code.
 
-## 📁 Quick Model Switching
+## Quick Model Switching
 
 ### Using the Configuration Manager (Recommended)
 ```bash
 python config_manager.py
 ```
 This interactive tool helps you:
-- 🔍 List all available models
-- 🔄 Switch between different models
-- 🎛️ Enable/disable mock modes
-- 📋 View current configuration
-- 🔧 Reset to defaults
+-  List all available models
+-  Switch between different models
+-  Enable/disable mock modes
+-  View current configuration
+-  Reset to defaults
 
 ### Manual .env Editing
 Simply edit the `.env` file and change the `MODEL_PATH` setting:
@@ -28,9 +28,9 @@ MODEL_PATH=C:/Models/experimental.pt        # Absolute path
 MODEL_PATH=yolov8n.pt                      # Download from Ultralytics
 ```
 
-## ⚙️ Configuration Categories
+##  Configuration Categories
 
-### 🤖 AI Model Settings
+###  AI Model Settings
 ```env
 MODEL_PATH=best.pt                    # Path to YOLO model file
 MODEL_INPUT_SIZE=480                  # Input resolution for AI processing
@@ -38,7 +38,7 @@ MODEL_CONFIDENCE_THRESHOLD=0.5        # Detection confidence threshold
 BOTTLE_CLASS_ID=39                    # COCO class ID for bottles
 ```
 
-### 📹 Camera Configuration
+###  Camera Configuration
 ```env
 CAMERA_INDEX=0                        # Camera device index (0, 1, 2...)
 CAMERA_WIDTH=640                      # Camera resolution width
@@ -47,7 +47,7 @@ CAMERA_FPS=30                         # Target frames per second
 JPEG_QUALITY=85                       # Compression quality (1-100)
 ```
 
-### 🔌 Serial Communication
+###  Serial Communication
 ```env
 SERIAL_PORT=AUTO                      # AUTO for auto-detection or specific port
 SERIAL_BAUD_RATE=115200              # Communication speed
@@ -55,7 +55,7 @@ SERIAL_TIMEOUT=1.0                   # Read timeout in seconds
 AUTO_DETECT_PORTS=CH340,CP210,USB   # Device identifiers for auto-detection
 ```
 
-### 🌐 Web Server Settings
+###  Web Server Settings
 ```env
 WEB_HOST=0.0.0.0                     # Server host (0.0.0.0 for all interfaces)
 WEB_PORT=5000                        # Server port
@@ -63,7 +63,7 @@ WEB_DEBUG=False                      # Enable Flask debug mode
 SECRET_KEY=micro_lab_garbage_collector_2025  # Session security key
 ```
 
-### 🎮 Robot Commands
+###  Robot Commands
 ```env
 COMMAND_FORWARD=F                    # Move forward command
 COMMAND_ROTATE=R                     # Rotate command
@@ -72,16 +72,16 @@ COMMAND_COLLECT=C                    # Collect trash command
 COMMAND_HEARTBEAT=H                  # Heartbeat/ping command
 ```
 
-### 🔧 Development & Testing
+###  Development & Testing
 ```env
 MOCK_ESP32=False                     # Simulate ESP32 without hardware
 MOCK_CAMERA=False                    # Simulate camera without hardware
 VERBOSE_OUTPUT=True                  # Enable detailed console output
 ```
 
-## 🚀 Common Use Cases
+##  Common Use Cases
 
-### 🔄 Switching Between Models
+###  Switching Between Models
 1. **Testing different YOLO versions:**
    ```env
    MODEL_PATH=yolov8n.pt    # Fastest, least accurate
@@ -98,7 +98,7 @@ VERBOSE_OUTPUT=True                  # Enable detailed console output
    MODEL_PATH=../experiments/latest_model.pt
    ```
 
-### 📹 Camera Troubleshooting
+###  Camera Troubleshooting
 1. **Multiple cameras connected:**
    ```env
    CAMERA_INDEX=0    # Built-in webcam
@@ -119,7 +119,7 @@ VERBOSE_OUTPUT=True                  # Enable detailed console output
    JPEG_QUALITY=95
    ```
 
-### 🔌 Serial Port Configuration
+###  Serial Port Configuration
 1. **Windows systems:**
    ```env
    SERIAL_PORT=COM3
@@ -134,7 +134,7 @@ VERBOSE_OUTPUT=True                  # Enable detailed console output
    SERIAL_PORT=/dev/cu.usbserial-*
    ```
 
-### 🧪 Development & Testing
+###  Development & Testing
 1. **Hardware-free testing:**
    ```env
    MOCK_ESP32=True      # No ESP32 required
@@ -149,30 +149,30 @@ VERBOSE_OUTPUT=True                  # Enable detailed console output
    WEB_DEBUG=False      # Production mode
    ```
 
-## 🛠️ Advanced Configuration
+##  Advanced Configuration
 
-### 🎯 Performance Tuning
+###  Performance Tuning
 ```env
 TARGET_FPS=30                        # Target processing speed
 FRAME_PROCESSING_DELAY=0.033         # Delay between frames (1/30 = 0.033)
 MODEL_INPUT_SIZE=480                 # Lower = faster, higher = more accurate
 ```
 
-### 📊 Detection Settings
+###  Detection Settings
 ```env
 MODEL_CONFIDENCE_THRESHOLD=0.3       # Lower = more detections (more false positives)
 MODEL_CONFIDENCE_THRESHOLD=0.7       # Higher = fewer detections (more accurate)
 BOTTLE_CLASS_ID=39                   # COCO dataset bottle class
 ```
 
-### 🔐 Security & Networking
+###  Security & Networking
 ```env
 SECRET_KEY=your_unique_secret_key    # Change for production
 WEB_HOST=127.0.0.1                  # Local only
 WEB_HOST=0.0.0.0                    # Accept external connections
 ```
 
-## 📋 Configuration Validation
+##  Configuration Validation
 
 The system automatically validates configuration on startup:
 - ✅ Checks if model file exists
@@ -180,7 +180,7 @@ The system automatically validates configuration on startup:
 - ✅ Tests serial port connectivity
 - ✅ Verifies web server settings
 
-## 🚨 Troubleshooting
+##  Troubleshooting
 
 ### Model Not Found
 ```
@@ -212,7 +212,7 @@ Error: Port 5000 is already in use
 ```
 **Solution:** Change `WEB_PORT` to a different value (e.g., 8080)
 
-## 💡 Tips & Best Practices
+##  Tips & Best Practices
 
 1. **Keep backups:** Copy `.env` to `.env.backup` before major changes
 2. **Use mock modes:** Test software changes without hardware
@@ -220,7 +220,7 @@ Error: Port 5000 is already in use
 4. **Documentation:** Comment your custom settings in the `.env` file
 5. **Validation:** Use `config_manager.py` to verify settings
 
-## 🔄 Environment File Templates
+##  Environment File Templates
 
 ### Production Template
 ```env
@@ -260,4 +260,4 @@ VERBOSE_OUTPUT=True
 
 ---
 
-**🔧 Need help?** Run `python config_manager.py` for an interactive configuration tool!
+** Need help?** Run `python config_manager.py` for an interactive configuration tool!
