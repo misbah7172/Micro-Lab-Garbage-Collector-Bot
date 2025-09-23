@@ -1,10 +1,10 @@
 # Micro Lab Garbage Collector - Autonomous Robot System
 
-## 🤖 System Overview
+##  System Overview
 
 This is a comprehensive autonomous garbage collection robot system with advanced object detection, navigation, and classification capabilities. The robot can systematically search for objects, detect and approach them using computer vision, and pick/classify them without external localization systems like LIDAR.
 
-## 🏗️ System Architecture
+##  System Architecture
 
 ### Hardware Components
 
@@ -34,7 +34,7 @@ This is a comprehensive autonomous garbage collection robot system with advanced
 - **Python AI System**: Computer vision and decision making
 - **Serial Communication**: Command interface between systems
 
-## 🧠 Software Architecture
+##  Software Architecture
 
 ### State Machine Design
 
@@ -69,7 +69,7 @@ POSITIONING → PICKING → CLASSIFYING → DEPOSITING → SEARCHING
 - Sensor data shared via thread-safe data structures
 - Command queue for serial communication
 
-## 🔧 Navigation Without LIDAR
+##  Navigation Without LIDAR
 
 ### Object Detection & Localization Strategy
 
@@ -107,7 +107,7 @@ Start → (0,0) → (1,0) → (1,1) → (0,1) → (-1,1) →
 (-1,0) → (-1,-1) → (0,-1) → (1,-1) → (2,-1) → ...
 ```
 
-## 🎯 Object Tracking & Approach
+##  Object Tracking & Approach
 
 ### Visual Tracking
 - **Object Center Calculation**: Track (x,y) position in camera frame
@@ -135,7 +135,7 @@ while not at_target_distance:
 - **Emergency Stop**: Immediate stop if front distance < 5cm
 - **Safe Direction Selection**: Move toward maximum clearance
 
-## 🦾 Arm Control & Object Manipulation
+##  Arm Control & Object Manipulation
 
 ### Pick Sequence
 1. **Approach Position**: Extend arm toward object
@@ -156,7 +156,7 @@ while not at_target_distance:
 3. **Statistics Update**: Track collection metrics
 4. **Return Home**: Reset arm to home position
 
-## ⚙️ Configuration System
+##  Configuration System
 
 ### Environment Variables (.env)
 All system parameters configurable without code changes:
@@ -180,7 +180,7 @@ CAMERA_INDEX=0
 SERIAL_PORT=AUTO
 ```
 
-## 🚀 Usage Instructions
+##  Usage Instructions
 
 ### Quick Start
 ```bash
@@ -211,7 +211,7 @@ python enhanced_autonomous_robot.py
 4. **Speed Tuning**: Set motor speeds for terrain
 5. **Search Optimization**: Configure search pattern and timing
 
-## 📊 Monitoring & Statistics
+##  Monitoring & Statistics
 
 ### Real-time Display
 - Current robot state
@@ -227,7 +227,7 @@ python enhanced_autonomous_robot.py
 - Distance traveled
 - Session uptime
 
-## 🔧 Troubleshooting
+##  Troubleshooting
 
 ### Common Issues
 
@@ -255,7 +255,7 @@ python enhanced_autonomous_robot.py
 - Test cable connections
 - Enable verbose output for debugging
 
-## 🎛️ Advanced Features
+##  Advanced Features
 
 ### Adaptive Search
 - Dynamic search pattern based on success rate
@@ -277,7 +277,7 @@ python enhanced_autonomous_robot.py
 - Predictive navigation
 - Optimized search patterns
 
-## 🔮 Future Enhancements
+##  Future Enhancements
 
 ### Navigation Improvements
 - SLAM implementation with visual odometry
@@ -294,7 +294,7 @@ python enhanced_autonomous_robot.py
 - Adaptive behavior based on environment
 - Predictive object location
 
-## 📋 Hardware Shopping List
+##  Hardware Shopping List
 
 ### Essential Components
 - ESP32 Development Board
@@ -318,7 +318,7 @@ python enhanced_autonomous_robot.py
 - Buzzer for audio feedback
 - SD card for data logging
 
-## 🎓 Learning Resources
+##  Learning Resources
 
 ### Computer Vision
 - YOLO object detection training
