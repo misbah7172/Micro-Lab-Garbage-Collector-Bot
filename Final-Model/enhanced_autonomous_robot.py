@@ -190,8 +190,9 @@ class EnhancedAutonomousRobot:
         self.search_pattern = self.generate_search_pattern()
         
         # Camera distance measurement
-        self.calibration_mode = False
-        self.calibration_samples = []
+        self.calibration_data = CalibrationData()
+        self.calibration_mode = False  # Used by calibration_demo.py
+        self.calibration_samples = []  # Used by calibration_demo.py
         self.load_calibration_data()
         
         # Object tracking and localization
@@ -378,15 +379,15 @@ class EnhancedAutonomousRobot:
         try:
             import json
             data = {
-                'known_object_width': self.calibration_data.known_object_width,
-                'known_object_height': self.calibration_data.known_object_height,
-                'known_distance': self.calibration_data.known_distance,
-                'pixel_width': self.calibration_data.pixel_width,
-                'pixel_height': self.calibration_data.pixel_height,
-                'focal_length_x': self.calibration_data.focal_length_x,
-                'focal_length_y': self.calibration_data.focal_length_y,
-                'is_calibrated': self.calibration_data.is_calibrated,
-                'calibration_timestamp': time.time()
+                'known_object_width': float(self.calibration_data.known_object_width),
+                'known_object_height': float(self.calibration_data.known_object_height),
+                'known_distance': float(self.calibration_data.known_distance),
+                'pixel_width': float(self.calibration_data.pixel_width),
+                'pixel_height': float(self.calibration_data.pixel_height),
+                'focal_length_x': float(self.calibration_data.focal_length_x),
+                'focal_length_y': float(self.calibration_data.focal_length_y),
+                'is_calibrated': bool(self.calibration_data.is_calibrated),
+                'calibration_timestamp': float(time.time())
             }
             
             with open(self.config.CALIBRATION_FILE, 'w') as f:
@@ -661,12 +662,7 @@ class EnhancedAutonomousRobot:
         # Show search pattern if searching
         if self.current_state == RobotState.SEARCHING:
             cv2.putText(frame, f"Search: Position {self.search_position_count}, Rotation {self.search_rotation_count}", 
-                       (10, frame.shape[0] - 40), font, 0.6, (255, 0, 0), 2)
-        
-        # Show calibration mode if active
-        if self.calibration_mode:
-            cv2.putText(frame, f"CALIBRATION MODE - Samples: {len(self.calibration_samples)}", 
-                       (10, frame.shape[0] - 20), font, 0.6, (0, 255, 255), 2)
+                       (10, frame.shape[0] - 20), font, 0.6, (255, 0, 0), 2)
         
         return frame
 
@@ -957,63 +953,18 @@ class EnhancedAutonomousRobot:
                     if ret:
                         has_objects, annotated_frame = self.detect_objects_enhanced(frame)
                         
-                        # Handle calibration mode
-                        if self.calibration_mode and has_objects:
-                            # Store calibration samples for distance measurement
-                            if self.detection_data.object_count > 0:
-                                bbox_width = self.detection_data.bbox_width
-                                bbox_height = self.detection_data.bbox_height
-                                self.calibration_samples.append((bbox_width, bbox_height))
-                                
-                                if self.config.VERBOSE_OUTPUT:
-                                    print(f"📏 Calibration sample {len(self.calibration_samples)}: "
-                                          f"{bbox_width:.1f}x{bbox_height:.1f} pixels")
-                        
                         # State transitions based on detection
-                        if has_objects and self.current_state == RobotState.SEARCHING and not self.calibration_mode:
+                        if has_objects and self.current_state == RobotState.SEARCHING:
                             self.transition_to_state(RobotState.OBJECT_DETECTED)
                         
                         # Display frame
                         if self.config.SHOW_CAMERA_FEED:
                             cv2.imshow('Enhanced Autonomous Garbage Collector', annotated_frame)
                             
-                            # Handle keyboard input for calibration
+                            # Handle keyboard input
                             key = cv2.waitKey(1) & 0xFF
                             if key == ord('q'):
                                 self.stop()
-                            elif key == ord('c') and self.config.ENABLE_CAMERA_DISTANCE:
-                                # Toggle calibration mode
-                                self.calibration_mode = not self.calibration_mode
-                                if self.calibration_mode:
-                                    self.calibration_samples = []
-                                    print(f"📏 Calibration mode ENABLED")
-                                    print(f"   - Place {self.config.CALIBRATION_OBJECT_WIDTH}x{self.config.CALIBRATION_OBJECT_HEIGHT}cm object at known distance")
-                                    print(f"   - Press 's' to save calibration sample")
-                                    print(f"   - Press 'f' to finish calibration")
-                                else:
-                                    print("📏 Calibration mode DISABLED")
-                            elif key == ord('s') and self.calibration_mode:
-                                # Save calibration sample
-                                if self.detection_data.object_count > 0:
-                                    distance = float(input(f"\nEnter actual distance to object (cm): "))
-                                    bbox_width = self.detection_data.bbox_width
-                                    bbox_height = self.detection_data.bbox_height
-                                    self.calibrate_camera_distance(bbox_width, bbox_height, distance)
-                                    print(f"✓ Calibration sample saved at {distance:.1f}cm")
-                                else:
-                                    print("⚠️ No object detected for calibration")
-                            elif key == ord('f') and self.calibration_mode:
-                                # Finish calibration
-                                if len(self.calibration_samples) > 0:
-                                    # Use average of samples for final calibration
-                                    avg_width = sum(s[0] for s in self.calibration_samples) / len(self.calibration_samples)
-                                    avg_height = sum(s[1] for s in self.calibration_samples) / len(self.calibration_samples)
-                                    distance = float(input(f"\nEnter known distance for {len(self.calibration_samples)} samples (cm): "))
-                                    self.calibrate_camera_distance(avg_width, avg_height, distance)
-                                    print(f"✓ Camera calibrated with {len(self.calibration_samples)} samples")
-                                    self.calibration_mode = False
-                                else:
-                                    print("⚠️ No calibration samples collected")
             except Exception as e:
                 if self.config.VERBOSE_OUTPUT:
                     print(f"Vision processing error: {e}")
@@ -1031,12 +982,36 @@ class EnhancedAutonomousRobot:
 
     def start(self):
         """Start the enhanced autonomous robot system"""
-        print("🤖 Starting Enhanced Autonomous Garbage Collector...")
-        print(f"📋 Configuration loaded:")
+        print("🤖 Enhanced Autonomous Garbage Collector")
+        print("=" * 60)
+        
+        # Check calibration status
+        if self.config.ENABLE_CAMERA_DISTANCE:
+            if self.calibration_data.is_calibrated:
+                print("✅ Camera distance measurement: CALIBRATED")
+                print(f"   � Focal length: X={self.calibration_data.focal_length_x:.2f}, Y={self.calibration_data.focal_length_y:.2f}")
+            else:
+                print("⚠️ Camera distance measurement: NOT CALIBRATED")
+                print("   💡 Run 'python calibration_demo.py' first to calibrate")
+        else:
+            print("📴 Camera distance measurement: DISABLED")
+        
+        print()
+        print(f"📋 Configuration:")
         print(f"   - Model: {self.config.MODEL_PATH}")
         print(f"   - Camera: {self.config.CAMERA_WIDTH}x{self.config.CAMERA_HEIGHT}")
         print(f"   - Search Pattern: {len(self.search_pattern)} positions")
         print(f"   - Metal Classes: {self.config.METAL_CLASS_IDS}")
+        
+        # Debug calibration data if enabled
+        if self.config.ENABLE_CAMERA_DISTANCE and self.config.VERBOSE_OUTPUT:
+            print(f"📏 Distance Measurement Debug:")
+            print(f"   - Calibrated: {self.calibration_data.is_calibrated}")
+            print(f"   - Focal Length X: {self.calibration_data.focal_length_x}")
+            print(f"   - Focal Length Y: {self.calibration_data.focal_length_y}")
+            print(f"   - Known Object: {self.calibration_data.known_object_width}x{self.calibration_data.known_object_height}cm")
+        
+        print()
         
         # Initialize components
         if not self.setup_serial_connection():

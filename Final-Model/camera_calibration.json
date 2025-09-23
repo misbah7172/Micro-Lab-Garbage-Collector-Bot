@@ -1,0 +1,11 @@
+{
+  "known_object_width": 10.0,
+  "known_object_height": 10.0,
+  "known_distance": 50.0,
+  "pixel_width": 200.0,
+  "pixel_height": 150.0,
+  "focal_length_x": 100.0,
+  "focal_length_y": 75.0,
+  "is_calibrated": true,
+  "calibration_timestamp": 1695481200.0
+}
