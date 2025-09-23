@@ -28,3 +28,12 @@
 - Multimeter
 - Hot glue gun
 - 3D printer (optional, for custom parts)
+
+### Hardware Configuration:
+  - 4x Ultrasonic Sensors (HC-SR04) for obstacle detection
+  - 2x DC Motors for robot movement
+  - 4x Servo Motors for arm mechanism
+  - 1x Servo Motor for bucket rotation
+  - 1x DHT22 sensor for temperature/humidity
+  - 1x MQ-2 sensor for smoke detection
+  - L298N Motor Driver for DC motors
