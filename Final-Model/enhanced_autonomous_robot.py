@@ -1,8 +1,4 @@
 #!/usr/bin/env python3
-"""
-Micro Lab Garbage Collector - Enhanced Autonomous Robot System
-With configuration file support and improved object detection/localization
-"""
 
 import os
 import cv2

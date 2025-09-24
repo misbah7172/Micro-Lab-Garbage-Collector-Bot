@@ -2,10 +2,10 @@
   "known_object_width": 10.0,
   "known_object_height": 10.0,
   "known_distance": 40.0,
-  "pixel_width": 147.01480102539062,
-  "pixel_height": 307.19287109375,
-  "focal_length_x": 588.0592041015625,
-  "focal_length_y": 1228.771484375,
+  "pixel_width": 119.70669555664062,
+  "pixel_height": 244.1049041748047,
+  "focal_length_x": 478.8267822265625,
+  "focal_length_y": 976.4196166992188,
   "is_calibrated": true,
-  "calibration_timestamp": 1758637439.1292064
+  "calibration_timestamp": 1758688869.8205137
 }

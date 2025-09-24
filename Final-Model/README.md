@@ -1,8 +1,8 @@
-# 🤖 Micro Lab Garbage Collector - Usage Guide
+#  Micro Lab Garbage Collector - Usage Guide
 
-## 📁 **Which File to Run?**
+##  **Which File to Run?**
 
-### 🎯 **Main Project Files:**
+###  **Main Project Files:**
 
 | File | Purpose | When to Use |
 |------|---------|-------------|
@@ -10,21 +10,21 @@
 | `calibration_demo.py` | 📏 Camera calibration only | Test distance measurement feature |
 | `test_system.py` | 🧪 System testing | Verify all components work |
 
-### 🚀 **For Normal Operation:**
+###  **For Normal Operation:**
 ```powershell
 # Run the main autonomous robot
 cd "c:\HARDARE\MicroLabGarbageCollector\Final-Model"
 python enhanced_autonomous_robot.py
 ```
 
-### 📏 **For Camera Calibration Only:**
+###  **For Camera Calibration Only:**
 ```powershell
 # Run calibration demo (simpler, calibration-focused)
 cd "c:\HARDARE\MicroLabGarbageCollector\Final-Model"  
 python calibration_demo.py
 ```
 
-### 🧪 **For System Testing:**
+###  **For System Testing:**
 ```powershell
 # Test all components
 cd "c:\HARDARE\MicroLabGarbageCollector"
@@ -33,19 +33,19 @@ python Final-Model/test_system.py
 
 ---
 
-# 🤖 Micro Lab Garbage Collector - Usage Guide
+#  Micro Lab Garbage Collector - Usage Guide
 
-## 📁 **Which File to Run?**
+##  **Which File to Run?**
 
-### 🎯 **Main Project Files:**
+###  **Main Project Files:**
 
 | File | Purpose | When to Use |
 |------|---------|-------------|
-| **`enhanced_autonomous_robot.py`** | **🚀 MAIN ROBOT SYSTEM** | **Run this for full autonomous operation** |
-| **`calibration_demo.py`** | **📏 Camera calibration tool** | **Run FIRST to calibrate distance measurement** |
-| `test_system.py` | 🧪 System testing | Verify all components work |
+| **`enhanced_autonomous_robot.py`** | ** MAIN ROBOT SYSTEM** | **Run this for full autonomous operation** |
+| **`calibration_demo.py`** | ** Camera calibration tool** | **Run FIRST to calibrate distance measurement** |
+| `test_system.py` |  System testing | Verify all components work |
 
-### 📋 **Recommended Workflow:**
+###  **Recommended Workflow:**
 
 #### **Step 1: Calibrate Camera (First Time Only)**
 ```powershell
@@ -61,7 +61,7 @@ cd "c:\HARDARE\MicroLabGarbageCollector\Final-Model"
 python enhanced_autonomous_robot.py
 ```
 
-### 🧪 **For System Testing:**
+###  **For System Testing:**
 ```powershell
 # Test all components
 cd "c:\HARDARE\MicroLabGarbageCollector"
@@ -70,9 +70,9 @@ python Final-Model/test_system.py
 
 ---
 
-## 🎛️ **Controls & Usage**
+##  **Controls & Usage**
 
-### **📏 Calibration Tool** (`calibration_demo.py`)
+### ** Calibration Tool** (`calibration_demo.py`)
 
 **Purpose:** Create calibration data for camera distance measurement
 
@@ -87,12 +87,12 @@ python Final-Model/test_system.py
 3. Press **'c'** to enter calibration mode
 4. Place 10×10 cm object in view (green bounding box appears)
 5. Press **'s'** to save sample
-6. ⏸️ **Tool pauses** - enter actual distance in terminal (e.g., "50")
+6.  **Tool pauses** - enter actual distance in terminal (e.g., "50")
 7. Press Enter to save sample
-8. 🔄 Repeat steps 4-7 for different distances (3-5 samples recommended)
+8.  Repeat steps 4-7 for different distances (3-5 samples recommended)
 9. Press **'q'** to finish and save calibration to `camera_calibration.json`
 
-### **🚀 Main Robot System** (`enhanced_autonomous_robot.py`)
+### ** Main Robot System** (`enhanced_autonomous_robot.py`)
 
 **Purpose:** Full autonomous garbage collection with distance measurement
 
@@ -109,7 +109,7 @@ python Final-Model/test_system.py
 
 ---
 
-## ⚙️ **Configuration**
+##  **Configuration**
 
 ### **Robot Settings:** `robot_config.env`
 ```bash
@@ -133,7 +133,7 @@ DISTANCE_MEASUREMENT_METHOD=average  # width, height, or average
 
 ---
 
-## 🔧 **Troubleshooting**
+##  **Troubleshooting**
 
 ### **Camera Issues:**
 - Ensure USB camera is connected
@@ -157,7 +157,7 @@ DISTANCE_MEASUREMENT_METHOD=average  # width, height, or average
 
 ---
 
-## 📊 **System Status**
+##  **System Status**
 
 ✅ **All 6 tests passing** - System fully operational  
 ✅ **Camera distance measurement** - Feature implemented and working  
