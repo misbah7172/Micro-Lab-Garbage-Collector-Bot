@@ -1,10 +1,11 @@
+#include <DHT.h>
 #include <ESP32Servo.h>
 
 // Motor driver pins (L298N)
 #define MOTOR_LEFT_FORWARD 2
 #define MOTOR_LEFT_BACKWARD 4
-#define MOTOR_RIGHT_FORWARD 22
-#define MOTOR_RIGHT_BACKWARD 23
+#define MOTOR_RIGHT_FORWARD 16
+#define MOTOR_RIGHT_BACKWARD 17
 #define MOTOR_LEFT_ENABLE 5
 #define MOTOR_RIGHT_ENABLE 18
 
@@ -13,7 +14,7 @@
 #define ECHO_LEFT 14
 #define TRIG_MIDDLE 19
 #define ECHO_MIDDLE 21
-#define TRIG_RIGHT 35
+#define TRIG_RIGHT 22
 #define ECHO_RIGHT 32
 
 // Servo motor pins
@@ -27,15 +28,21 @@
 #define EMERGENCY_STOP_SWITCH 34
 #define PROCESS_CONTROL_SWITCH 35
 
+// Environmental sensors
+#define DHT_PIN 23
+#define DHT_TYPE DHT22
+#define SMOKE_SENSOR_PIN 36
+
 // System status LED
 #define STATUS_LED 13
 
 // Motor speed constants
 #define FULL_SPEED 255
-#define SLOW_SPEED 160
+#define SLOW_SPEED 120
 #define STOP_SPEED 0
 
 // Initialize components
+DHT dht(DHT_PIN, DHT_TYPE);
 Servo servoArmLeft;
 Servo servoArmRight;
 Servo servoBoxLeft;
@@ -119,6 +126,9 @@ void setup() {
   // Set initial servo positions
   resetToInitialPosition();
   
+  // Initialize sensors
+  dht.begin();
+  
   Serial.println("Advanced Garbage Collector Ready!");
   Serial.println("States: STOPPED->SEARCHING->TRACKING->ULTRASONIC_RANGE->COLLECTING");
   stopMotors();
@@ -152,6 +162,12 @@ void loop() {
       systemActive = false;
       currentState = STOPPED;
     }
+  }
+  
+  // Read environmental sensors
+  if (millis() - lastSensorRead > SENSOR_INTERVAL) {
+    readEnvironmentalSensors();
+    lastSensorRead = millis();
   }
   
   delay(50);
@@ -329,6 +345,7 @@ void executeUltrasonicDetection() {
     currentState = TRACKING;
   }
 }
+
 // Motor control functions
 void moveForward(int speed) {
   digitalWrite(MOTOR_LEFT_FORWARD, HIGH);
@@ -555,4 +572,25 @@ void moveServosSmoothly(Servo &servo1, Servo &servo2, int current1, int current2
   servo2.write(target2);
 }
 
-
+// Environmental sensor functions
+void readEnvironmentalSensors() {
+  float temperature = dht.readTemperature();
+  float humidity = dht.readHumidity();
+  int smokeLevel = analogRead(SMOKE_SENSOR_PIN);
+  
+  // Check for sensor errors
+  if (isnan(temperature) || isnan(humidity)) {
+    Serial.println("DHT sensor error");
+    return;
+  }
+  
+  Serial.printf("ENV - Temp: %.1f°C, Humidity: %.1f%%, Smoke: %d\n", 
+                temperature, humidity, smokeLevel);
+  
+  // Check for dangerous conditions
+  if (temperature > 50 || smokeLevel > 500) {
+    Serial.println("WARNING: High temperature or smoke detected!");
+    emergencyStop = true;
+    stopMotors();
+  }
+}
