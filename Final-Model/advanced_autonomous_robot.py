@@ -543,7 +543,8 @@ class AdvancedAutonomousRobot:
                     else:
                         self.system_status = SystemStatus.PAUSED
                         self.robot_state = RobotState.STOPPED
-                        print("⏸️  System PAUSED")
+                        self.send_command("PAUSE")  # Send PAUSE command to ESP32
+                        print("⏸️  System PAUSED - Motors stopped")
                 
                 elif key == ord('r') or key == ord('R'):  # Reset
                     self.robot_state = RobotState.SEARCHING
