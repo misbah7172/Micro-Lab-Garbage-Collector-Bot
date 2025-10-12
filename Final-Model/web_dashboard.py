@@ -22,6 +22,8 @@ from flask import Flask, render_template, Response, jsonify
 from flask_socketio import SocketIO, emit
 import json
 from dotenv import load_dotenv
+import requests
+from urllib.request import urlopen
 
 # Load environment variables
 load_dotenv()
@@ -103,15 +105,17 @@ dashboard_data = {
     'temperature': Config.DEFAULT_TEMPERATURE,
     'humidity': Config.DEFAULT_HUMIDITY,
     'smoke_level': Config.DEFAULT_SMOKE_LEVEL,
+    'smoke_detected': False,
+    'metal_detected': False,
     'distance': Config.DEFAULT_DISTANCE,
     'camera_status': 'OFFLINE',
-    'ai_model_status': 'LOADING'
+    'ai_model_status': 'ROBOT_HANDLED',
+    'last_sensor_update': 'Never'
 }
 
 # Global objects
 ser = None
 cap = None
-model = None
 detection_count = 0
 frame_count = 0
 start_time = time.time()
@@ -157,70 +161,13 @@ def setup_serial_connection():
         dashboard_data['connection_status'] = 'DISCONNECTED'
         return None
 
-def load_ai_model():
-    """Load YOLO AI model with enhanced security handling"""
-    global model, dashboard_data
-    
-    dashboard_data['ai_model_status'] = 'LOADING'
-    
-    try:
-        # Enhanced security patch for PyTorch 2.6+ weights_only restriction
-        import torch
-        original_load = torch.load
-        def trusted_load(*args, **kwargs):
-            kwargs['weights_only'] = False
-            return original_load(*args, **kwargs)
-        torch.load = trusted_load
-        
-        # Use configured model path
-        if os.path.isabs(Config.MODEL_PATH):
-            model_path = Config.MODEL_PATH
-        else:
-            model_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), Config.MODEL_PATH)
-        
-        if not os.path.exists(model_path):
-            print(f"Model file not found at: {model_path}")
-            print(f"Current working directory: {os.getcwd()}")
-            print(f"Script directory: {os.path.dirname(os.path.abspath(__file__))}")
-            dashboard_data['ai_model_status'] = 'ERROR'
-            return None
-        
-        model = YOLO(model_path)
-        print(f"YOLO model loaded successfully from: {model_path}")
-        dashboard_data['ai_model_status'] = 'READY'
-        return model
-        
-    except Exception as e:
-        print(f"Error loading YOLO model: {e}")
-        dashboard_data['ai_model_status'] = 'ERROR'
-        return None
-
 def setup_camera():
-    """Setup camera with error handling"""
-    global cap, dashboard_data
+    """Setup camera - now uses robot's video stream instead of direct camera access"""
+    global dashboard_data
     
-    if Config.MOCK_CAMERA:
-        print("🔧 Mock camera mode enabled - skipping camera setup")
-        dashboard_data['camera_status'] = 'MOCK'
-        return None
-    
-    try:
-        cap = cv2.VideoCapture(Config.CAMERA_INDEX)
-        if cap.isOpened():
-            cap.set(cv2.CAP_PROP_FRAME_WIDTH, Config.CAMERA_WIDTH)
-            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, Config.CAMERA_HEIGHT)
-            cap.set(cv2.CAP_PROP_FPS, Config.CAMERA_FPS)
-            print(f"✓ Camera initialized successfully (Index: {Config.CAMERA_INDEX}, Resolution: {Config.CAMERA_WIDTH}x{Config.CAMERA_HEIGHT})")
-            dashboard_data['camera_status'] = 'ONLINE'
-            return cap
-        else:
-            print("✗ Failed to open camera")
-            dashboard_data['camera_status'] = 'ERROR'
-            return None
-    except Exception as e:
-        print(f"Camera setup error: {e}")
-        dashboard_data['camera_status'] = 'ERROR'
-        return None
+    print("🔧 Camera setup - using robot's video stream from http://127.0.0.1:5001/video_feed")
+    dashboard_data['camera_status'] = 'STREAM_MODE'
+    return None  # No direct camera needed
 
 def serial_reader():
     """Background thread to read ESP32 data"""
@@ -233,8 +180,33 @@ def serial_reader():
                 if data:
                     print(f"ESP32: {data}")
                     
-                    # Parse sensor data
-                    if "Temperature:" in data and "Humidity:" in data:
+                    # Parse structured sensor data: SENSOR_DATA:temp,humidity,smoke_level,smoke_detected,metal_detected
+                    if "SENSOR_DATA:" in data:
+                        try:
+                            data_part = data.split(":")[1].strip()
+                            values = data_part.split(",")
+                            if len(values) >= 5:
+                                dashboard_data['temperature'] = float(values[0])
+                                dashboard_data['humidity'] = float(values[1])
+                                dashboard_data['smoke_level'] = int(values[2])
+                                dashboard_data['smoke_detected'] = bool(int(values[3]))
+                                dashboard_data['metal_detected'] = bool(int(values[4]))
+                                dashboard_data['last_sensor_update'] = time.strftime("%H:%M:%S")
+                                
+                                # Emit real-time updates to web clients
+                                socketio.emit('sensor_update', {
+                                    'temperature': dashboard_data['temperature'],
+                                    'humidity': dashboard_data['humidity'],
+                                    'smoke_level': dashboard_data['smoke_level'],
+                                    'smoke_detected': dashboard_data['smoke_detected'],
+                                    'metal_detected': dashboard_data['metal_detected']
+                                })
+                                
+                        except (ValueError, IndexError) as e:
+                            print(f"Error parsing sensor data: {e}")
+                    
+                    # Parse legacy sensor data (backward compatibility)
+                    elif "Temperature:" in data and "Humidity:" in data:
                         temp_match = re.search(r'Temperature: ([\d.]+)', data)
                         humid_match = re.search(r'Humidity: ([\d.]+)', data)
                         
@@ -283,8 +255,8 @@ def serial_reader():
         time.sleep(Config.SERIAL_READ_DELAY)
 
 def send_command(command):
-    """Send command to ESP32"""
-    global ser, dashboard_data
+    """Send command to ESP32 via robot"""
+    global dashboard_data
     
     if Config.MOCK_ESP32:
         dashboard_data['last_command'] = command
@@ -292,82 +264,141 @@ def send_command(command):
             print(f"Mock ESP32: Command {command} sent")
         return True
     
-    if ser and ser.is_open:
-        try:
-            ser.write(command.encode())
+    # Send command to robot, which will forward it to ESP32
+    try:
+        robot_command_url = f"http://127.0.0.1:5001/send_command/{command}"
+        response = requests.get(robot_command_url, timeout=1.0)
+        if response.status_code == 200:
             dashboard_data['last_command'] = command
             if Config.VERBOSE_OUTPUT:
-                print(f"Sent command to ESP32: {command}")
+                print(f"Sent command via robot: {command}")
             return True
-        except Exception as e:
-            print(f"Error sending command: {e}")
+        else:
+            print(f"Robot command failed with status: {response.status_code}")
             return False
-    return False
+    except (requests.exceptions.RequestException, requests.exceptions.Timeout):
+        if Config.VERBOSE_OUTPUT:
+            print(f"Error sending command to robot: Command {command} - Robot offline")
+        return False
 
 def generate_frames():
-    """Generate camera frames for streaming"""
-    global cap, model, dashboard_data, detection_count, frame_count, current_frame
+    """Generate camera frames from robot's video stream"""
+    global dashboard_data, detection_count, frame_count, current_frame
     
-    if not cap or not model:
-        return
+    robot_stream_url = "http://127.0.0.1:5001/video_feed"
+    robot_sensor_url = "http://127.0.0.1:5001/sensor_data"
     
     while True:
         try:
-            ret, frame = cap.read()
-            if not ret:
-                break
-            
-            frame_count += 1
-            
-            # Update system metrics
-            current_time = time.time()
-            dashboard_data['frame_rate'] = round(1.0 / max(0.001, current_time - getattr(generate_frames, 'last_time', current_time)), 1)
-            generate_frames.last_time = current_time
-            dashboard_data['system_uptime'] = round(current_time - start_time, 1)
-            
-            # Run AI detection
-            results = model(frame, imgsz=Config.MODEL_INPUT_SIZE, verbose=False)
-            detections = sv.Detections.from_ultralytics(results[0])
-            
-            # Show all detections for debugging (temporarily disabled bottle filtering)
-            # bottle_detections = detections[detections.class_id == Config.BOTTLE_CLASS_ID]
-            bottle_detections = detections  # Show all detections like test.py
-            
-            if len(bottle_detections) > 0:
-                detection_count += len(bottle_detections)
-                dashboard_data['detections_count'] = len(bottle_detections)  # Show current frame detections
-                dashboard_data['total_detections'] = detection_count         # Keep running total
-                
-                # Send movement command
-                send_command(Config.COMMAND_FORWARD)
-                if Config.VERBOSE_OUTPUT:
-                    print(f"Objects detected! (Current: {len(bottle_detections)}, Total: {detection_count}) Moving forward...")
-            else:
-                dashboard_data['detections_count'] = 0  # No detections in current frame
-            
-            # Annotate frame
-            box_annotator = sv.BoxAnnotator()
-            label_annotator = sv.LabelAnnotator()
-            
-            annotated_frame = box_annotator.annotate(scene=frame, detections=bottle_detections)
-            annotated_frame = label_annotator.annotate(scene=annotated_frame, detections=bottle_detections)
-            
-            # Convert frame to base64 for web streaming
-            _, buffer = cv2.imencode('.jpg', annotated_frame, [cv2.IMWRITE_JPEG_QUALITY, Config.JPEG_QUALITY])
-            current_frame = base64.b64encode(buffer).decode('utf-8')
-            
-            # Ensure dashboard data consistency before emission
-            dashboard_data['current_detections'] = len(bottle_detections)  # Add explicit current count
-            dashboard_data['robot_status'] = 'DETECTING' if len(bottle_detections) > 0 else 'SCANNING'
-            
-            # Emit data to web clients with error handling
+            # Get sensor data from robot
             try:
-                socketio.emit('frame_update', {'frame': current_frame})
-                socketio.emit('data_update', dashboard_data)
-            except Exception as emit_error:
-                print(f"WebSocket emission error: {emit_error}")
+                sensor_response = requests.get(robot_sensor_url, timeout=0.5)
+                if sensor_response.status_code == 200:
+                    sensor_data = sensor_response.json()
+                    dashboard_data['temperature'] = sensor_data.get('temperature', 0.0)
+                    dashboard_data['humidity'] = sensor_data.get('humidity', 0.0)
+                    dashboard_data['smoke_level'] = sensor_data.get('smoke_level', 0)
+                    dashboard_data['smoke_detected'] = sensor_data.get('smoke_detected', False)
+                    dashboard_data['metal_detected'] = sensor_data.get('metal_detected', False)
+                    
+                    # Convert timestamp to readable time format
+                    last_update_timestamp = sensor_data.get('last_sensor_update', 0)
+                    if last_update_timestamp > 0:
+                        dashboard_data['last_sensor_update'] = time.strftime("%H:%M:%S", time.localtime(last_update_timestamp))
+                    else:
+                        dashboard_data['last_sensor_update'] = "Never"
+                        
+                    # Debug: Print sensor data to terminal
+                    print(f"📊 Sensor Data: T={dashboard_data['temperature']:.1f}°C, H={dashboard_data['humidity']:.1f}%, S={dashboard_data['smoke_level']}, Update={dashboard_data['last_sensor_update']}")
+                    
+                    # Emit real-time sensor updates to web clients
+                    socketio.emit('sensor_update', {
+                        'temperature': dashboard_data['temperature'],
+                        'humidity': dashboard_data['humidity'],
+                        'smoke_level': dashboard_data['smoke_level'],
+                        'smoke_detected': dashboard_data['smoke_detected'],
+                        'metal_detected': dashboard_data['metal_detected'],
+                        'last_sensor_update': dashboard_data['last_sensor_update']
+                    })
+            except (requests.exceptions.RequestException, requests.exceptions.Timeout):
+                pass  # Continue without sensor data if robot is not available
             
-            time.sleep(Config.FRAME_PROCESSING_DELAY)
+            # Get frame from robot's video stream
+            try:
+                response = requests.get(robot_stream_url, stream=True, timeout=1.0)
+                if response.status_code == 200:
+                    # Read multipart stream
+                    bytes_data = b''
+                    for chunk in response.iter_content(chunk_size=1024):
+                        bytes_data += chunk
+                        # Look for JPEG image boundaries
+                        start_marker = bytes_data.find(b'\xff\xd8')
+                        end_marker = bytes_data.find(b'\xff\xd9')
+                        
+                        if start_marker != -1 and end_marker != -1 and end_marker > start_marker:
+                            # Extract JPEG image
+                            jpg_data = bytes_data[start_marker:end_marker+2]
+                            bytes_data = bytes_data[end_marker+2:]
+                            
+                            # Decode image
+                            nparr = np.frombuffer(jpg_data, np.uint8)
+                            frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+                            
+                            if frame is not None:
+                                frame_count += 1
+                                
+                                # Update system metrics
+                                current_time = time.time()
+                                dashboard_data['frame_rate'] = round(1.0 / max(0.001, current_time - getattr(generate_frames, 'last_time', current_time)), 1)
+                                generate_frames.last_time = current_time
+                                dashboard_data['system_uptime'] = round(current_time - start_time, 1)
+                                
+                                # Convert frame to base64 for web streaming
+                                _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, Config.JPEG_QUALITY])
+                                current_frame = base64.b64encode(buffer).decode('utf-8')
+                                
+                                # Update dashboard data
+                                dashboard_data['robot_status'] = 'CONNECTED'
+                                dashboard_data['camera_status'] = 'STREAMING'
+                                
+                                # Emit data to web clients
+                                try:
+                                    socketio.emit('frame_update', {'frame': current_frame})
+                                    socketio.emit('data_update', dashboard_data)
+                                except Exception as emit_error:
+                                    print(f"WebSocket emission error: {emit_error}")
+                                
+                                break  # Process one frame at a time
+                            
+                        if len(bytes_data) > 100000:  # Prevent buffer overflow
+                            bytes_data = b''
+                            
+                else:
+                    # Robot stream not available
+                    dashboard_data['robot_status'] = 'DISCONNECTED'
+                    dashboard_data['camera_status'] = 'OFFLINE'
+                    
+            except (requests.exceptions.RequestException, requests.exceptions.Timeout):
+                # Create a message frame when robot is not available
+                message_frame = np.zeros((480, 640, 3), dtype=np.uint8)
+                cv2.putText(message_frame, "Robot Camera Offline", (180, 220), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+                cv2.putText(message_frame, "Start advanced_autonomous_robot.py", (120, 260), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+                
+                _, buffer = cv2.imencode('.jpg', message_frame)
+                current_frame = base64.b64encode(buffer).decode('utf-8')
+                
+                dashboard_data['robot_status'] = 'DISCONNECTED'
+                dashboard_data['camera_status'] = 'OFFLINE'
+                
+                try:
+                    socketio.emit('frame_update', {'frame': current_frame})
+                    socketio.emit('data_update', dashboard_data)
+                except Exception as emit_error:
+                    print(f"WebSocket emission error: {emit_error}")
+            
+            time.sleep(0.033)  # ~30 FPS
             
         except Exception as e:
             print(f"Frame processing error: {e}")
@@ -410,7 +441,7 @@ def get_config():
 def send_command_api(command):
     """API endpoint for sending commands"""
     valid_commands = [Config.COMMAND_FORWARD, Config.COMMAND_ROTATE, Config.COMMAND_STOP, 
-                     Config.COMMAND_COLLECT, Config.COMMAND_HEARTBEAT]
+                     Config.COMMAND_COLLECT, Config.COMMAND_HEARTBEAT, 'ENV_TEST', 'ULTRASONIC_TEST', 'MOTOR_TEST']
     
     if command in valid_commands:
         success = send_command(command)
@@ -441,31 +472,21 @@ def handle_command(data):
 
 def initialize_system():
     """Initialize all system components"""
-    global ser, cap, model, dashboard_data
+    global ser, cap, dashboard_data
     
     print(f"🚀 Initializing {Config.DASHBOARD_TITLE}...")
     print(f"📋 Configuration loaded from .env file")
-    print(f"   - Model: {Config.MODEL_PATH}")
-    print(f"   - Camera: Index {Config.CAMERA_INDEX} ({Config.CAMERA_WIDTH}x{Config.CAMERA_HEIGHT})")
-    print(f"   - Serial: {Config.SERIAL_PORT} @ {Config.SERIAL_BAUD_RATE} baud")
+    print(f"   - Model: AI handled by Robot")
+    print(f"   - Camera: Streaming from Robot")
+    print(f"   - Sensors: Data from Robot")
     print(f"   - Web Server: {Config.WEB_HOST}:{Config.WEB_PORT}")
     
-    # Load AI model
-    print("Loading AI model...")
-    model = load_ai_model()
-    
-    # Setup camera
-    print("Setting up camera...")
+    # Setup camera (now uses robot stream)
+    print("Setting up camera stream...")
     cap = setup_camera()
     
-    # Setup serial connection
-    print("Setting up ESP32 connection...")
-    ser = setup_serial_connection()
-    
-    # Start serial reader thread
-    if ser and not Config.MOCK_ESP32:
-        serial_thread = threading.Thread(target=serial_reader, daemon=True)
-        serial_thread.start()
+    # Note: ESP32 connection is handled by the robot
+    print("ESP32 connection managed by robot...")
     
     dashboard_data['robot_status'] = 'READY'
     print("✓ System initialization complete!")
@@ -476,10 +497,9 @@ if __name__ == '__main__':
         # Initialize system
         initialize_system()
         
-        # Start camera processing in background
-        if (cap and model) or (Config.MOCK_CAMERA and model):
-            camera_thread = threading.Thread(target=generate_frames, daemon=True)
-            camera_thread.start()
+        # Start camera stream processing in background
+        camera_thread = threading.Thread(target=generate_frames, daemon=True)
+        camera_thread.start()
         
         print(f"📱 Dashboard available at: http://localhost:{Config.WEB_PORT}")
         print(f"🌍 Also available at: http://{Config.WEB_HOST}:{Config.WEB_PORT}")
@@ -503,9 +523,5 @@ if __name__ == '__main__':
                 print("✓ Serial connection closed")
             except:
                 pass
-        
-        if cap and not Config.MOCK_CAMERA:
-            cap.release()
-            print("✓ Camera released")
         
         print("System shutdown complete")

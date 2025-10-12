@@ -1,4 +1,9 @@
 #include <ESP32Servo.h>
+// #include <DHT.h>  // Commented out until DHT library is installed
+
+// DHT11 sensor setup (commented out until library is available)
+#define DHTTYPE DHT11
+// DHT dht(DHT11_PIN, DHTTYPE);  // Commented out until library is available
 
 // Function prototypes
 long getUltrasonicDistance(int trigPin, int echoPin);
@@ -25,6 +30,9 @@ void moveServoSmoothly(Servo &servo, int currentPos, int targetPos);
 void moveRampServoSafely(int targetPos);
 void moveServosSmoothly(Servo &servo1, Servo &servo2, int current1, int current2, int target1, int target2);
 void moveArmsSynchronized(int leftTarget, int rightSyncTarget);
+void readEnvironmentalSensors();
+void testEnvironmentalSensors();
+void sendSensorData();
 
 // Configuration options
 #define GENTLE_SERVO_STARTUP true  // Set to false to disable auto servo movement on startup
@@ -56,14 +64,20 @@ void moveArmsSynchronized(int leftTarget, int rightSyncTarget);
 #define SERVO_ARM_RIGHT 2        // Changed from 26 to avoid ultrasonic conflict  
 #define SERVO_BOX_LEFT 21        
 #define SERVO_BOX_RIGHT 19       
-#define SERVO_RAMP 5             // Changed from 15 to avoid ultrasonic conflict
+#define SERVO_RAMP 16            // Changed from 5 to avoid MQ2 conflict
+
+// Environmental sensor pins
+#define DHT11_PIN 35             // DHT11 temperature & humidity sensor
+#define MQ2_ANALOG_PIN 34        // MQ2 smoke sensor (analog input) - D34
+#define MQ2_DIGITAL_PIN 5        // MQ2 smoke sensor (digital output) - D5  
+#define METAL_DETECTOR_PIN 17    // Push switch acting as metal detector (temporary)
 
 // System status LED
 #define STATUS_LED 13
 
 // Motor speed constants
 #define FULL_SPEED 255
-#define SLOW_SPEED 160
+#define SLOW_SPEED 255
 #define STOP_SPEED 0
 
 // Initialize components
@@ -112,6 +126,14 @@ int objectCenterX = 0;
 int frameCenterX = 320; // Assuming 640x480 camera
 int centerTolerance = 50;
 
+// Environmental sensor variables
+float temperature = 0.0;
+float humidity = 0.0;
+int smokeLevel = 0;
+bool smokeDetected = false;
+bool metalDetected = false;
+const unsigned long SENSOR_READ_INTERVAL = 2000; // Read sensors every 2 seconds
+
 void setup() {
   Serial.begin(115200);
   
@@ -130,6 +152,13 @@ void setup() {
   pinMode(ECHO_MIDDLE, INPUT);
   pinMode(TRIG_RIGHT, OUTPUT);
   pinMode(ECHO_RIGHT, INPUT);
+  
+  // Initialize environmental sensor pins
+  pinMode(MQ2_DIGITAL_PIN, INPUT);
+  pinMode(METAL_DETECTOR_PIN, INPUT_PULLUP); // Push switch with pullup
+  
+  // Initialize DHT11 sensor (commented out until library is available)
+  // dht.begin();
   
   // Initialize status LED
   pinMode(STATUS_LED, OUTPUT);
@@ -186,6 +215,10 @@ void setup() {
   Serial.println("\n🔍 Testing ultrasonic sensors on startup...");
   testUltrasonicSensors();
   
+  // Test environmental sensors on startup
+  Serial.println("\n🌡️ Testing environmental sensors on startup...");
+  testEnvironmentalSensors();
+  
   // Wait for Python command to start (don't auto-start)
   Serial.println("🔧 SYSTEM READY - Waiting for Python commands...");
   Serial.println("� Send 'START_SEARCH' command from Python to begin operation");
@@ -226,6 +259,13 @@ void testPinValidity() {
 }
 
 void loop() {
+  // Read environmental sensors periodically
+  if (millis() - lastSensorRead >= SENSOR_READ_INTERVAL) {
+    readEnvironmentalSensors();
+    sendSensorData();
+    lastSensorRead = millis();
+  }
+  
   // Debug loop execution
   static unsigned long lastLoopDebug = 0;
   if (millis() - lastLoopDebug >= 2000) {
@@ -357,6 +397,10 @@ void processSerialCommand() {
     Serial.println("🔧 FORCED SWITCH TO ULTRASONIC_RANGE MODE");
     Serial.println("STATE: ULTRASONIC_RANGE");
   }
+  else if (command == "ENV_TEST") {
+    // Test environmental sensors
+    testEnvironmentalSensors();
+  }
 }
 
 // Main state machine
@@ -446,14 +490,14 @@ void executeObjectTracking() {
   } else {
     // Object is centered, move forward continuously
     Serial.println("🎯 OBJECT CENTERED: Moving forward, distance=" + String(objectDistance) + "m");
-    if (objectDistance > 0.3) { // Changed from 0.1m to 0.3m (30cm instead of 10cm)
+    if (objectDistance > 0.35) { // Changed from 0.3m to 0.35m (35cm instead of 30cm)
       moveForward(SLOW_SPEED);
-      Serial.println("🎯 MOVING FORWARD: Distance " + String(objectDistance) + "m > 0.3m threshold");
+      Serial.println("🎯 MOVING FORWARD: Distance " + String(objectDistance) + "m > 0.35m threshold");
     } else {
-      // Within 30cm, switch to ultrasonic detection
+      // Within 35cm, switch to ultrasonic detection
       stopMotors();
       currentState = ULTRASONIC_RANGE;
-      Serial.println("🎯 SWITCHING TO ULTRASONIC: Distance " + String(objectDistance) + "m <= 0.3m");
+      Serial.println("🎯 SWITCHING TO ULTRASONIC: Distance " + String(objectDistance) + "m <= 0.35m");
       Serial.println("STATE: ULTRASONIC_RANGE");
     }
   }
@@ -500,15 +544,15 @@ void executeUltrasonicDetection() {
   bool rightValid = (rightDistance > 0 && rightDistance != -1 && rightDistance != -2);
   
   // Enhanced decision making with better debugging
-  if (middleValid && middleDistance < 15) { // Object detected in middle sensor
+  if (middleValid && middleDistance < 18) { // Object detected in middle sensor (increased from 15cm to 18cm)
     stopMotors();
     currentState = COLLECTING;
     Serial.println("🎯 OBJECT DETECTED in MIDDLE sensor at " + String(middleDistance) + "cm - COLLECTING!");
     Serial.println("STATE: COLLECTING");
-  } else if (leftValid && leftDistance < 20) { // Object detected on left
+  } else if (leftValid && leftDistance < 25) { // Object detected on left (increased from 20cm to 25cm)
     Serial.println("🎯 OBJECT DETECTED on LEFT at " + String(leftDistance) + "cm - moving circular left");
     moveCircularLeft(FULL_SPEED);  // Keep moving continuously
-  } else if (rightValid && rightDistance < 20) { // Object detected on right
+  } else if (rightValid && rightDistance < 25) { // Object detected on right (increased from 20cm to 25cm)
     Serial.println("🎯 OBJECT DETECTED on RIGHT at " + String(rightDistance) + "cm - moving circular right");
     moveCircularRight(FULL_SPEED); // Keep moving continuously
   } else {
@@ -778,8 +822,8 @@ void executeCollectionSequence() {
   switch (collectionStep) {
     case 1: // Lower arms (synchronized movement)
       if (millis() - stepStartTime >= 500) {
-        moveArmsSynchronized(20, 20); // Both arms move DOWN together (Left=20°, Right=130°)
-        Serial.println("COLLECTION: Arms lowered synchronized: Left=20° (front-down), Right=130° (back-down)");
+        moveArmsSynchronized(140, 140); // Both arms move DOWN together (Left=140°, Right=10°)
+        Serial.println("COLLECTION: Arms lowered synchronized: Left=140° (front-down), Right=10° (back-down)");
         stepStartTime = millis();
         collectionStep = 2;
       }
@@ -802,21 +846,21 @@ void executeCollectionSequence() {
       collectionStep = 4;
       break;
       
-    case 4: // Lift arms (synchronized movement)
+    case 4: // Lift arms HIGH for ramp release (synchronized movement)
       if (millis() - stepStartTime >= 1000) {
-        moveArmsSynchronized(150, 150); // Both arms move UP together (Left=150°, Right=0°)
-        Serial.println("COLLECTION: Arms lifted synchronized: Left=150° (front-high), Right=0° (back-high)");
+        moveArmsSynchronized(0, 0); // Both arms move to MAXIMUM HIGH for ramp release (Left=0°, Right=150°)
+        Serial.println("COLLECTION: Arms lifted to MAXIMUM HIGH for ramp: Left=0° (front-max-high), Right=150° (back-max-high)");
         stepStartTime = millis();
         collectionStep = 5;
       }
       break;
       
-    case 5: // Open box to release (45° to 0°)
+    case 5: // Open box to release at ramp (45° to 0°)
       if (millis() - stepStartTime >= 1000) {
         moveServosSmoothly(servoBoxLeft, servoBoxRight, boxLeftPosition, boxRightPosition, 0, 0);
         boxLeftPosition = 0;
         boxRightPosition = 0;
-        Serial.println("COLLECTION: Box opened, releasing object");
+        Serial.println("COLLECTION: Box opened, releasing object at ramp level");
         stepStartTime = millis();
         collectionStep = 6;
       }
@@ -831,7 +875,7 @@ void executeCollectionSequence() {
       }
       break;
       
-    case 7: // Close ramp (90° to 0°) - SG90 servo
+    case 7: // Wait for object to fall through ramp
       if (millis() - stepStartTime >= 2000) {
         moveRampServoSafely(0);
         Serial.println("COLLECTION: Ramp closed");
@@ -840,10 +884,10 @@ void executeCollectionSequence() {
       }
       break;
       
-    case 8: // Reset arms (synchronized movement)
+    case 8: // Reset arms to initial position (synchronized movement)
       if (millis() - stepStartTime >= 500) {
         moveArmsSynchronized(60, 60); // Both arms move to initial position (Left=60°, Right=90°)
-        Serial.println("COLLECTION: Arms reset synchronized: Left=60° (front-up), Right=90° (back-up)");
+        Serial.println("COLLECTION: Arms reset to initial position: Left=60° (front-up), Right=90° (back-up)");
         Serial.println("COLLECTION: Sequence completed");
         collectionStep = 0;
         currentState = SEARCHING;
@@ -992,6 +1036,115 @@ void moveArmsSynchronized(int leftTarget, int rightSyncTarget) {
   
   armLeftPosition = leftTarget;
   armRightPosition = rightTarget;
+}
+
+// Environmental sensor functions
+void readEnvironmentalSensors() {
+  // Read DHT11 sensor (temperature and humidity) - TEMPORARILY DISABLED
+  // Uncomment when DHT library is installed
+  /*
+  float newTemp = dht.readTemperature();
+  float newHumidity = dht.readHumidity();
+  
+  // Check if reads failed
+  if (isnan(newTemp) || isnan(newHumidity)) {
+    Serial.println("⚠️ DHT11 sensor read failed!");
+  } else {
+    temperature = newTemp;
+    humidity = newHumidity;
+  }
+  */
+  
+  // For now, use mock data for DHT11 until library is installed
+  temperature = 24.5 + random(-50, 50) / 10.0; // Simulate temperature variation
+  humidity = 60.0 + random(-100, 100) / 10.0;  // Simulate humidity variation
+  
+  // Read MQ2 smoke sensor (analog value)
+  smokeLevel = analogRead(MQ2_ANALOG_PIN);
+  
+  // Determine smoke detection based on analog threshold instead of digital pin
+  // Normal air: ~1000-1200, smoke present: >1500 (adjust threshold as needed)
+  const int SMOKE_THRESHOLD = 1500; // Adjust based on your sensor calibration
+  smokeDetected = smokeLevel > SMOKE_THRESHOLD;
+  
+  // Debug output for smoke detection
+  if (smokeDetected) {
+    Serial.println("🚨 SMOKE DETECTED! Analog Level: " + String(smokeLevel) + " (Threshold: " + String(SMOKE_THRESHOLD) + ")");
+  }
+  
+  // Read metal detector (push switch)
+  metalDetected = digitalRead(METAL_DETECTOR_PIN) == LOW; // Button pressed = metal detected
+}
+
+void testEnvironmentalSensors() {
+  Serial.println("=== ENVIRONMENTAL SENSOR TEST START ===");
+  
+  // Test DHT11 sensor - TEMPORARILY DISABLED
+  Serial.println("🌡️ Testing DHT11 (Temperature & Humidity) sensor:");
+  Serial.println("  Pin: " + String(DHT11_PIN));
+  Serial.println("  Status: SIMULATED (DHT library not installed)");
+  Serial.println("  Note: Install 'DHT sensor library' by Adafruit to enable real readings");
+  /*
+  // Uncomment when DHT library is installed
+  float testTemp = dht.readTemperature();
+  float testHumidity = dht.readHumidity();
+  
+  if (isnan(testTemp) || isnan(testHumidity)) {
+    Serial.println("  Status: ❌ DHT11 FAILED - Check wiring and power");
+    Serial.println("  Troubleshooting:");
+    Serial.println("    - Verify VCC (3.3V), GND, and Data pin connections");
+    Serial.println("    - Check if DHT library is installed");
+    Serial.println("    - Try different pin or sensor");
+  } else {
+    Serial.println("  Temperature: " + String(testTemp) + "°C ✅");
+    Serial.println("  Humidity: " + String(testHumidity) + "% ✅");
+    Serial.println("  Status: ✅ DHT11 WORKING");
+  }
+  */
+  
+  // Test MQ2 smoke sensor
+  Serial.println("\n💨 Testing MQ2 (Smoke) sensor:");
+  Serial.println("  Analog Pin: " + String(MQ2_ANALOG_PIN));
+  Serial.println("  Digital Pin: " + String(MQ2_DIGITAL_PIN) + " (not used - using analog threshold)");
+  
+  int smokeAnalog = analogRead(MQ2_ANALOG_PIN);
+  const int SMOKE_THRESHOLD = 1500;
+  bool smokeThreshold = smokeAnalog > SMOKE_THRESHOLD;
+  bool smokeDigital = digitalRead(MQ2_DIGITAL_PIN) == LOW;
+  
+  Serial.println("  Analog Value: " + String(smokeAnalog) + " (0-4095)");
+  Serial.println("  Threshold Detection: " + String(smokeThreshold ? "SMOKE DETECTED" : "NO SMOKE") + " (Threshold: " + String(SMOKE_THRESHOLD) + ")");
+  Serial.println("  Digital State: " + String(smokeDigital ? "SMOKE DETECTED" : "NO SMOKE") + " (not used)");
+  
+  if (smokeAnalog > 0 && smokeAnalog < 4095) {
+    Serial.println("  Status: ✅ MQ2 RESPONDING - Using analog threshold detection");
+  } else {
+    Serial.println("  Status: ⚠️ MQ2 may need calibration or warmup time");
+  }
+  
+  Serial.println("  Note: MQ2 needs 24-48 hours for proper calibration");
+  
+  // Test metal detector (push switch)
+  Serial.println("\n🔍 Testing Metal Detector (Push Switch):");
+  Serial.println("  Pin: " + String(METAL_DETECTOR_PIN));
+  
+  bool metalState = digitalRead(METAL_DETECTOR_PIN) == LOW;
+  Serial.println("  Current State: " + String(metalState ? "PRESSED (Metal Detected)" : "NOT PRESSED"));
+  Serial.println("  Status: ✅ SWITCH READY");
+  Serial.println("  Note: Press button to simulate metal detection");
+  
+  Serial.println("\n=== ENVIRONMENTAL SENSOR TEST COMPLETE ===");
+  Serial.println("💡 Sensors will be read every " + String(SENSOR_READ_INTERVAL/1000) + " seconds during operation");
+}
+
+void sendSensorData() {
+  // Send sensor data to Python in a structured format
+  Serial.println("SENSOR_DATA:" + 
+                String(temperature) + "," + 
+                String(humidity) + "," + 
+                String(smokeLevel) + "," + 
+                String(smokeDetected ? 1 : 0) + "," + 
+                String(metalDetected ? 1 : 0));
 }
 
 

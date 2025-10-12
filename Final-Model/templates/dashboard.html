@@ -270,6 +270,15 @@
         .status-online { background-color: #00ff88; }
         .status-offline { background-color: #ff4757; }
         .status-warning { background-color: #ffa502; }
+        .status-error { background-color: #ff4757; color: #fff; }
+        .status-connected { background-color: #00ff88; color: #fff; }
+        .status-info { background-color: #667eea; color: #fff; }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.6; }
+            100% { opacity: 1; }
+        }
 
         @media (max-width: 1200px) {
             .dashboard-container {
@@ -411,10 +420,26 @@
                 <span class="status-label">Smoke Level</span>
                 <span class="status-value" id="smoke-level">150</span>
             </div>
+            <div class="sensor-reading" id="smoke-alert-row">
+                <div class="sensor-icon"><i class="fas fa-exclamation-triangle"></i></div>
+                <span class="status-label">Smoke Alert</span>
+                <span class="status-value" id="smoke-detected">NO</span>
+            </div>
+            <div class="sensor-reading">
+                <div class="sensor-icon"><i class="fas fa-magnet"></i></div>
+                <span class="status-label">Metal Detector</span>
+                <span class="status-value" id="metal-detected">NO METAL</span>
+            </div>
             <div class="sensor-reading">
                 <div class="sensor-icon"><i class="fas fa-ruler"></i></div>
                 <span class="status-label">Distance</span>
                 <span class="status-value" id="distance">45cm</span>
+            </div>
+            <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.2);">
+                <div class="status-item">
+                    <span class="status-label">Last Sensor Update</span>
+                    <span class="status-value" id="last-sensor-update">Never</span>
+                </div>
             </div>
         </div>
 
@@ -440,6 +465,20 @@
                 <button class="btn" onclick="sendCommand('H')">
                     <i class="fas fa-heartbeat"></i> Heartbeat
                 </button>
+            </div>
+            <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.2);">
+                <h3 style="margin-bottom: 10px; font-size: 1rem;">Sensor Tests</h3>
+                <div class="control-buttons">
+                    <button class="btn btn-info" onclick="sendCommand('ENV_TEST')">
+                        <i class="fas fa-thermometer-half"></i> Test Environmental
+                    </button>
+                    <button class="btn btn-info" onclick="sendCommand('ULTRASONIC_TEST')">
+                        <i class="fas fa-wave-square"></i> Test Ultrasonic
+                    </button>
+                    <button class="btn btn-info" onclick="sendCommand('MOTOR_TEST')">
+                        <i class="fas fa-cog"></i> Test Motors
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -521,6 +560,32 @@
             updateElement('humidity', data.humidity.toFixed(1) + '%');
             updateElement('smoke-level', data.smoke_level);
             updateElement('distance', data.distance + 'cm');
+            
+            // Smoke detection alert
+            const smokeDetectedElement = document.getElementById('smoke-detected');
+            const smokeAlertRow = document.getElementById('smoke-alert-row');
+            if (data.smoke_detected) {
+                updateElement('smoke-detected', 'SMOKE DETECTED ⚠️', 'status-error');
+                smokeAlertRow.style.backgroundColor = 'rgba(255, 71, 87, 0.2)';
+                smokeAlertRow.style.animation = 'pulse 1s infinite';
+            } else {
+                updateElement('smoke-detected', 'NO SMOKE ✅', 'status-connected');
+                smokeAlertRow.style.backgroundColor = '';
+                smokeAlertRow.style.animation = '';
+            }
+            
+            // Metal detection
+            const metalDetectedElement = document.getElementById('metal-detected');
+            if (data.metal_detected) {
+                updateElement('metal-detected', 'METAL DETECTED 🔍', 'status-warning');
+                metalDetectedElement.style.animation = 'pulse 1s infinite';
+            } else {
+                updateElement('metal-detected', 'NO METAL', 'status-info');
+                metalDetectedElement.style.animation = '';
+            }
+            
+            // Last sensor update
+            updateElement('last-sensor-update', data.last_sensor_update || 'Never');
 
             // Performance
             updateElement('frame-rate', data.frame_rate);
@@ -591,6 +656,40 @@
 
         socket.on('data_update', function(data) {
             updateDashboard(data);
+        });
+
+        socket.on('sensor_update', function(data) {
+            // Real-time sensor updates
+            updateElement('temperature', data.temperature.toFixed(1) + '°C');
+            updateElement('humidity', data.humidity.toFixed(1) + '%');
+            updateElement('smoke-level', data.smoke_level + ' (' + (data.smoke_level > 1500 ? 'HIGH' : 'NORMAL') + ')');
+            
+            // Update smoke detection alert with enhanced visual feedback
+            const smokeDetectedElement = document.getElementById('smoke-detected');
+            const smokeAlertRow = document.getElementById('smoke-alert-row');
+            if (data.smoke_detected) {
+                updateElement('smoke-detected', 'SMOKE DETECTED ⚠️', 'status-error');
+                smokeAlertRow.style.backgroundColor = 'rgba(255, 71, 87, 0.2)';
+                smokeAlertRow.style.animation = 'pulse 1s infinite';
+                smokeAlertRow.style.border = '2px solid #ff4757';
+            } else {
+                updateElement('smoke-detected', 'NO SMOKE ✅', 'status-connected');
+                smokeAlertRow.style.backgroundColor = '';
+                smokeAlertRow.style.animation = '';
+                smokeAlertRow.style.border = '';
+            }
+            
+            // Update metal detection
+            const metalDetectedElement = document.getElementById('metal-detected');
+            if (data.metal_detected) {
+                updateElement('metal-detected', 'METAL DETECTED 🔍', 'status-warning');
+                metalDetectedElement.style.animation = 'pulse 1s infinite';
+            } else {
+                updateElement('metal-detected', 'NO METAL', 'status-info');
+                metalDetectedElement.style.animation = '';
+            }
+            
+            updateElement('last-sensor-update', data.last_sensor_update || 'Never');
         });
 
         socket.on('frame_update', function(data) {

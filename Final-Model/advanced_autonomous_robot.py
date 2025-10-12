@@ -17,6 +17,8 @@ from dataclasses import dataclass
 from typing import Optional, Tuple, List
 import json
 from dotenv import load_dotenv
+from flask import Flask, Response
+import base64
 
 # Load configuration
 load_dotenv('robot_config.env')
@@ -86,6 +88,7 @@ class AdvancedAutonomousRobot:
         self.frame_queue = queue.Queue(maxsize=10)
         self.detection_queue = queue.Queue(maxsize=5)
         self.running = False
+        self.current_frame = None  # Store current frame for streaming
         
         # Camera and AI components
         self.camera = None
@@ -101,6 +104,14 @@ class AdvancedAutonomousRobot:
         self.fps_counter = 0
         self.fps_start_time = time.time()
         self.detection_count = 0
+        
+        # Environmental sensor data
+        self.temperature = 0.0
+        self.humidity = 0.0
+        self.smoke_level = 0
+        self.smoke_detected = False
+        self.metal_detected = False
+        self.last_sensor_update = time.time()
         
         print("🤖 Advanced Autonomous Robot System Initialized")
         print("="*60)
@@ -348,12 +359,16 @@ class AdvancedAutonomousRobot:
     
     def draw_status_info(self, frame):
         """Draw system status information"""
-        # Status background
+        # Main status background
         overlay = frame.copy()
-        cv2.rectangle(overlay, (10, 10), (300, 120), (0, 0, 0), -1)
+        cv2.rectangle(overlay, (10, 10), (300, 160), (0, 0, 0), -1)
         cv2.addWeighted(overlay, 0.7, frame, 0.3, 0, frame)
         
-        # Status text
+        # Environmental sensors background
+        cv2.rectangle(overlay, (320, 10), (620, 130), (0, 0, 0), -1)
+        cv2.addWeighted(overlay, 0.7, frame, 0.3, 0, frame)
+        
+        # Main status text
         status_texts = [
             f"State: {self.robot_state.value.upper()}",
             f"System: {self.system_status.value.upper()}",
@@ -362,9 +377,29 @@ class AdvancedAutonomousRobot:
             f"Detections: {self.detection_count}"
         ]
         
+        # Environmental sensor texts
+        env_texts = [
+            f"Environmental Sensors:",
+            f"Temp: {self.temperature:.1f}°C",
+            f"Humidity: {self.humidity:.1f}%",
+            f"Smoke: {self.smoke_level} {'⚠️' if self.smoke_detected else '✅'}",
+            f"Metal: {'DETECTED 🔍' if self.metal_detected else 'None'}"
+        ]
+        
         for i, text in enumerate(status_texts):
-            cv2.putText(frame, text, (15, 30 + i * 20), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+            y_pos = 30 + i * 18
+            color = (0, 255, 0) if self.serial_port else (0, 0, 255)
+            cv2.putText(frame, text, (15, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
+        
+        for i, text in enumerate(env_texts):
+            y_pos = 30 + i * 20
+            if i == 0:  # Header
+                color = (255, 255, 255)
+            elif "DETECTED" in text or "⚠️" in text:
+                color = (0, 0, 255)  # Red for alerts
+            else:
+                color = (0, 255, 0)  # Green for normal
+            cv2.putText(frame, text, (325, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
     
     def camera_capture_thread(self):
         """Camera capture thread"""
@@ -478,11 +513,32 @@ class AdvancedAutonomousRobot:
                 if state.value == state_name:
                     self.robot_state = state
                     break
+        elif "SENSOR_DATA:" in response:
+            # Parse sensor data: temperature,humidity,smoke_level,smoke_detected,metal_detected
+            try:
+                data_part = response.split(":")[1].strip()
+                values = data_part.split(",")
+                if len(values) >= 5:
+                    self.temperature = float(values[0])
+                    self.humidity = float(values[1])
+                    self.smoke_level = int(values[2])
+                    self.smoke_detected = bool(int(values[3]))
+                    self.metal_detected = bool(int(values[4]))
+                    self.last_sensor_update = time.time()
+                    
+                    # Log environmental alerts
+                    if self.smoke_detected:
+                        print(f"🚨 SMOKE DETECTED! Level: {self.smoke_level}")
+                    if self.metal_detected:
+                        print(f"🔍 METAL DETECTED!")
+                    
+            except (ValueError, IndexError) as e:
+                print(f"⚠️ Error parsing sensor data: {e}")
         elif "COLLECTION:" in response:
             print(f"🤖 {response}")
         elif "SEARCH:" in response:
             print(f"🔍 {response}")
-        elif "ENV -" in response:
+        elif "ENV -" in response or "🌡️" in response:
             print(f"🌡️  {response}")
         elif "WARNING:" in response:
             print(f"⚠️  {response}")
@@ -500,6 +556,7 @@ class AdvancedAutonomousRobot:
         print("  U - Test ultrasonic sensors")
         print("  M - Test motors")
         print("  F - Force ultrasonic detection mode")
+        print("  E - Test environmental sensors")
         print("="*60)
         
         self.running = True
@@ -530,6 +587,9 @@ class AdvancedAutonomousRobot:
                     # Draw annotations
                     annotated_frame = self.draw_annotations(frame, detections)
                     self.draw_status_info(annotated_frame)
+                    
+                    # Store current frame for streaming
+                    self.current_frame = annotated_frame.copy()
                     
                     # Display frame
                     cv2.imshow("Advanced Autonomous Robot - Camera Feed", annotated_frame)
@@ -565,6 +625,10 @@ class AdvancedAutonomousRobot:
                 elif key == ord('f') or key == ord('F'):  # Force ultrasonic mode
                     self.send_command("FORCE_ULTRASONIC")
                     print("🔊 Forcing ultrasonic detection mode...")
+                
+                elif key == ord('e') or key == ord('E'):  # Environmental sensors test
+                    self.send_command("ENV_TEST")
+                    print("🌡️ Testing environmental sensors...")
                 
                 elif key == 27 or key == ord('q') or key == ord('Q'):  # ESC or Q
                     print("🛑 Shutting down system...")
@@ -610,14 +674,108 @@ class AdvancedAutonomousRobot:
         print("✅ Cleanup completed")
 
 
+# Global robot instance for Flask video streaming
+robot_instance = None
+
+# Flask application for video streaming
+app = Flask(__name__)
+
+def generate_frames():
+    """Generate video frames for streaming"""
+    while True:
+        if robot_instance and robot_instance.current_frame is not None:
+            frame = robot_instance.current_frame.copy()
+            
+            # Encode frame as JPEG
+            ret, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
+            if ret:
+                frame_bytes = buffer.tobytes()
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+        else:
+            # Send a blank frame if no frame is available
+            blank_frame = np.zeros((480, 640, 3), dtype=np.uint8)
+            cv2.putText(blank_frame, "Camera Initializing...", (200, 240), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+            ret, buffer = cv2.imencode('.jpg', blank_frame)
+            if ret:
+                frame_bytes = buffer.tobytes()
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+        
+        time.sleep(0.033)  # ~30 FPS
+
+@app.route('/video_feed')
+def video_feed():
+    """Video streaming route"""
+    return Response(generate_frames(), 
+                    mimetype='multipart/x-mixed-replace; boundary=frame')
+
+@app.route('/status')
+def status():
+    """Status endpoint"""
+    if robot_instance:
+        return {
+            'status': 'running',
+            'current_state': robot_instance.current_state.value if robot_instance.current_state else 'unknown',
+            'system_status': robot_instance.system_status.value if robot_instance.system_status else 'unknown'
+        }
+    return {'status': 'not_initialized'}
+
+@app.route('/sensor_data')
+def sensor_data():
+    """Environmental sensor data endpoint"""
+    if robot_instance:
+        return {
+            'temperature': robot_instance.temperature,
+            'humidity': robot_instance.humidity,
+            'smoke_level': robot_instance.smoke_level,
+            'smoke_detected': robot_instance.smoke_detected,
+            'metal_detected': robot_instance.metal_detected,
+            'last_sensor_update': getattr(robot_instance, 'last_sensor_update', 0),
+            'timestamp': time.time()
+        }
+    return {
+        'temperature': 0.0,
+        'humidity': 0.0,
+        'smoke_level': 0,
+        'smoke_detected': False,
+        'metal_detected': False,
+        'last_sensor_update': 0,
+        'timestamp': time.time()
+    }
+
+@app.route('/send_command/<command>')
+def send_command_endpoint(command):
+    """Send command to ESP32 via robot"""
+    if robot_instance and robot_instance.serial_port and robot_instance.serial_port.is_open:
+        try:
+            robot_instance.serial_port.write(command.encode())
+            return {'success': True, 'command': command, 'message': 'Command sent to ESP32'}
+        except Exception as e:
+            return {'success': False, 'command': command, 'error': str(e)}, 500
+    return {'success': False, 'command': command, 'error': 'ESP32 not connected'}, 503
+
+def start_flask_server():
+    """Start Flask server in a separate thread"""
+    app.run(host='127.0.0.1', port=5001, debug=False, threaded=True, use_reloader=False)
+
+
 def main():
     """Main entry point"""
+    global robot_instance
     print("🤖 Advanced Autonomous Garbage Collector Robot")
     print("="*60)
     
     try:
-        robot = AdvancedAutonomousRobot()
-        robot.start_system()
+        robot_instance = AdvancedAutonomousRobot()
+        
+        # Start Flask server in a separate thread
+        flask_thread = threading.Thread(target=start_flask_server, daemon=True)
+        flask_thread.start()
+        print("🌐 Video streaming server started on http://127.0.0.1:5001/video_feed")
+        
+        robot_instance.start_system()
         
     except KeyboardInterrupt:
         print("\n🛑 System interrupted by user")
