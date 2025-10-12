@@ -497,6 +497,9 @@ class AdvancedAutonomousRobot:
         print("  SPACE - Start/Pause operation")
         print("  ESC/Q - Quit system")
         print("  R - Reset to search mode")
+        print("  U - Test ultrasonic sensors")
+        print("  M - Test motors")
+        print("  F - Force ultrasonic detection mode")
         print("="*60)
         
         self.running = True
@@ -550,6 +553,18 @@ class AdvancedAutonomousRobot:
                     self.robot_state = RobotState.SEARCHING
                     self.send_command("START_SEARCH")
                     print("🔄 Reset to search mode")
+                
+                elif key == ord('u') or key == ord('U'):  # Ultrasonic test
+                    self.send_command("ULTRASONIC_TEST")
+                    print("🔍 Testing ultrasonic sensors...")
+                
+                elif key == ord('m') or key == ord('M'):  # Motor test
+                    self.send_command("MOTOR_TEST")
+                    print("🔧 Testing motors...")
+                
+                elif key == ord('f') or key == ord('F'):  # Force ultrasonic mode
+                    self.send_command("FORCE_ULTRASONIC")
+                    print("🔊 Forcing ultrasonic detection mode...")
                 
                 elif key == 27 or key == ord('q') or key == ord('Q'):  # ESC or Q
                     print("🛑 Shutting down system...")

@@ -1,5 +1,31 @@
 #include <ESP32Servo.h>
 
+// Function prototypes
+long getUltrasonicDistance(int trigPin, int echoPin);
+long getUltrasonicDistanceWithTimeout(int trigPin, int echoPin, unsigned long timeout = 30000);
+void testUltrasonicSensors();
+void testMotors();
+void testPinValidity();
+void executeStateMachine();
+void executeSearchPattern();
+void executeObjectTracking();
+void executeUltrasonicDetection();
+void executeCollectionSequence();
+void processSerialCommand();
+void moveForward(int speed);
+void rotateClockwise(int speed);
+void turnLeft(int speed);
+void turnRight(int speed);
+void moveCircularLeft(int speed);
+void moveCircularRight(int speed);
+void stopMotors();
+void resetToInitialPositionGently();
+void resetToInitialPosition();
+void moveServoSmoothly(Servo &servo, int currentPos, int targetPos);
+void moveRampServoSafely(int targetPos);
+void moveServosSmoothly(Servo &servo1, Servo &servo2, int current1, int current2, int target1, int target2);
+void moveArmsSynchronized(int leftTarget, int rightSyncTarget);
+
 // Configuration options
 #define GENTLE_SERVO_STARTUP true  // Set to false to disable auto servo movement on startup
 
@@ -155,6 +181,10 @@ void setup() {
   // Test pin validity first
   testPinValidity();
   testMotors();
+  
+  // Test ultrasonic sensors on startup
+  Serial.println("\n🔍 Testing ultrasonic sensors on startup...");
+  testUltrasonicSensors();
   
   // Wait for Python command to start (don't auto-start)
   Serial.println("🔧 SYSTEM READY - Waiting for Python commands...");
@@ -315,6 +345,18 @@ void processSerialCommand() {
     stopMotors();
     Serial.println("=== MOTOR TEST COMPLETE ===");
   }
+  else if (command == "ULTRASONIC_TEST") {
+    // Comprehensive ultrasonic sensor test
+    testUltrasonicSensors();
+  }
+  else if (command == "FORCE_ULTRASONIC") {
+    // Force switch to ultrasonic detection mode for testing
+    stopMotors();
+    currentState = ULTRASONIC_RANGE;
+    objectDetected = true; // Keep object detected flag
+    Serial.println("🔧 FORCED SWITCH TO ULTRASONIC_RANGE MODE");
+    Serial.println("STATE: ULTRASONIC_RANGE");
+  }
 }
 
 // Main state machine
@@ -377,10 +419,11 @@ void executeSearchPattern() {
 
 // Object tracking execution
 void executeObjectTracking() {
-  // Debug output
+  // Debug output with distance information
   static unsigned long lastTrackingDebug = 0;
   if (millis() - lastTrackingDebug >= 2000) {
     Serial.println("🎯 TRACKING: Object detected=" + String(objectDetected) + ", centered=" + String(objectCentered));
+    Serial.println("🎯 TRACKING: Camera distance=" + String(objectDistance) + "m, Center X=" + String(objectCenterX));
     lastTrackingDebug = millis();
   }
   
@@ -402,12 +445,15 @@ void executeObjectTracking() {
     }
   } else {
     // Object is centered, move forward continuously
-    if (objectDistance > 0.1) { // More than 10cm
+    Serial.println("🎯 OBJECT CENTERED: Moving forward, distance=" + String(objectDistance) + "m");
+    if (objectDistance > 0.3) { // Changed from 0.1m to 0.3m (30cm instead of 10cm)
       moveForward(SLOW_SPEED);
+      Serial.println("🎯 MOVING FORWARD: Distance " + String(objectDistance) + "m > 0.3m threshold");
     } else {
-      // Within 10cm, switch to ultrasonic detection
+      // Within 30cm, switch to ultrasonic detection
       stopMotors();
       currentState = ULTRASONIC_RANGE;
+      Serial.println("🎯 SWITCHING TO ULTRASONIC: Distance " + String(objectDistance) + "m <= 0.3m");
       Serial.println("STATE: ULTRASONIC_RANGE");
     }
   }
@@ -415,23 +461,67 @@ void executeObjectTracking() {
 
 // Ultrasonic detection execution
 void executeUltrasonicDetection() {
-  long leftDistance = getUltrasonicDistance(TRIG_LEFT, ECHO_LEFT);
-  long middleDistance = getUltrasonicDistance(TRIG_MIDDLE, ECHO_MIDDLE);
-  long rightDistance = getUltrasonicDistance(TRIG_RIGHT, ECHO_RIGHT);
+  static unsigned long lastUltrasonicDebug = 0;
   
-  Serial.printf("Ultrasonic - L:%ld M:%ld R:%ld\n", leftDistance, middleDistance, rightDistance);
+  // Debug output every 1 second
+  if (millis() - lastUltrasonicDebug >= 1000) {
+    Serial.println("🔊 ULTRASONIC MODE: Reading sensors...");
+    lastUltrasonicDebug = millis();
+  }
   
-  if (middleDistance < 15) { // Object detected in middle sensor
+  long leftDistance = getUltrasonicDistanceWithTimeout(TRIG_LEFT, ECHO_LEFT);
+  long middleDistance = getUltrasonicDistanceWithTimeout(TRIG_MIDDLE, ECHO_MIDDLE);
+  long rightDistance = getUltrasonicDistanceWithTimeout(TRIG_RIGHT, ECHO_RIGHT);
+  
+  // Enhanced debug output with error handling
+  Serial.print("🔊 Ultrasonic readings - ");
+  Serial.print("L:");
+  if (leftDistance == -1) Serial.print("TIMEOUT");
+  else if (leftDistance == -2) Serial.print("OUT_OF_RANGE");
+  else if (leftDistance <= 0) Serial.print("ERROR");
+  else Serial.print(String(leftDistance) + "cm");
+  
+  Serial.print(" M:");
+  if (middleDistance == -1) Serial.print("TIMEOUT");
+  else if (middleDistance == -2) Serial.print("OUT_OF_RANGE");
+  else if (middleDistance <= 0) Serial.print("ERROR");
+  else Serial.print(String(middleDistance) + "cm");
+  
+  Serial.print(" R:");
+  if (rightDistance == -1) Serial.print("TIMEOUT");
+  else if (rightDistance == -2) Serial.print("OUT_OF_RANGE");
+  else if (rightDistance <= 0) Serial.print("ERROR");
+  else Serial.print(String(rightDistance) + "cm");
+  Serial.println();
+  
+  // Only use valid readings for decision making
+  bool leftValid = (leftDistance > 0 && leftDistance != -1 && leftDistance != -2);
+  bool middleValid = (middleDistance > 0 && middleDistance != -1 && middleDistance != -2);
+  bool rightValid = (rightDistance > 0 && rightDistance != -1 && rightDistance != -2);
+  
+  // Enhanced decision making with better debugging
+  if (middleValid && middleDistance < 15) { // Object detected in middle sensor
     stopMotors();
     currentState = COLLECTING;
+    Serial.println("🎯 OBJECT DETECTED in MIDDLE sensor at " + String(middleDistance) + "cm - COLLECTING!");
     Serial.println("STATE: COLLECTING");
-  } else if (leftDistance < 20) { // Object detected on left
+  } else if (leftValid && leftDistance < 20) { // Object detected on left
+    Serial.println("🎯 OBJECT DETECTED on LEFT at " + String(leftDistance) + "cm - moving circular left");
     moveCircularLeft(FULL_SPEED);  // Keep moving continuously
-  } else if (rightDistance < 20) { // Object detected on right
+  } else if (rightValid && rightDistance < 20) { // Object detected on right
+    Serial.println("🎯 OBJECT DETECTED on RIGHT at " + String(rightDistance) + "cm - moving circular right");
     moveCircularRight(FULL_SPEED); // Keep moving continuously
   } else {
-    // No object in ultrasonic range, keep searching
-    rotateClockwise(SLOW_SPEED);  // Continuous slow rotation
+    // No object in ultrasonic range, decide next action
+    if (!leftValid && !middleValid && !rightValid) {
+      Serial.println("⚠️ All ultrasonic sensors failed - continuing rotation");
+      rotateClockwise(SLOW_SPEED);  // Continuous slow rotation
+    } else {
+      // Valid sensors but no close object detected
+      Serial.println("🔍 No close object detected by ultrasonic sensors - returning to search");
+      currentState = SEARCHING;
+      Serial.println("STATE: SEARCHING");
+    }
   }
 }
 // Motor testing function
@@ -560,6 +650,117 @@ long getUltrasonicDistance(int trigPin, int echoPin) {
   long distance = duration * 0.034 / 2;
   
   return distance;
+}
+
+// Enhanced ultrasonic sensor function with timeout and error handling
+long getUltrasonicDistanceWithTimeout(int trigPin, int echoPin, unsigned long timeout) {
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+  
+  long duration = pulseIn(echoPin, HIGH, timeout); // 30ms timeout
+  
+  if (duration == 0) {
+    return -1; // Timeout or no response
+  }
+  
+  long distance = duration * 0.034 / 2;
+  
+  // Validate distance (HC-SR04 range: 2cm to 400cm)
+  if (distance < 2 || distance > 400) {
+    return -2; // Out of range
+  }
+  
+  return distance;
+}
+
+// Comprehensive ultrasonic sensor test function
+void 
+testUltrasonicSensors() {
+  Serial.println("=== ULTRASONIC SENSOR TEST START ===");
+  
+  // Test pin configuration
+  Serial.println("🔧 Testing pin configurations:");
+  Serial.println("Left  - TRIG:" + String(TRIG_LEFT) + " ECHO:" + String(ECHO_LEFT));
+  Serial.println("Middle- TRIG:" + String(TRIG_MIDDLE) + " ECHO:" + String(ECHO_MIDDLE));
+  Serial.println("Right - TRIG:" + String(TRIG_RIGHT) + " ECHO:" + String(ECHO_RIGHT));
+  
+  // Test each sensor individually
+  String sensorNames[] = {"LEFT", "MIDDLE", "RIGHT"};
+  int trigPins[] = {TRIG_LEFT, TRIG_MIDDLE, TRIG_RIGHT};
+  int echoPins[] = {ECHO_LEFT, ECHO_MIDDLE, ECHO_RIGHT};
+  
+  for (int i = 0; i < 3; i++) {
+    Serial.println("\n🔍 Testing " + sensorNames[i] + " sensor:");
+    
+    // Test trigger pin
+    Serial.print("  Trigger pin " + String(trigPins[i]) + " test: ");
+    pinMode(trigPins[i], OUTPUT);
+    digitalWrite(trigPins[i], HIGH);
+    delay(10);
+    if (digitalRead(trigPins[i]) == HIGH) {
+      digitalWrite(trigPins[i], LOW);
+      delay(10);
+      if (digitalRead(trigPins[i]) == LOW) {
+        Serial.println("✅ OK");
+      } else {
+        Serial.println("❌ STUCK HIGH");
+      }
+    } else {
+      Serial.println("❌ CANNOT SET HIGH");
+    }
+    
+    // Test echo pin
+    Serial.print("  Echo pin " + String(echoPins[i]) + " test: ");
+    pinMode(echoPins[i], INPUT);
+    int echoState = digitalRead(echoPins[i]);
+    Serial.println("State: " + String(echoState) + " ✅");
+    
+    // Test distance measurement (5 readings)
+    Serial.println("  Distance readings (5 samples):");
+    long totalDistance = 0;
+    int validReadings = 0;
+    
+    for (int j = 0; j < 5; j++) {
+      long distance = getUltrasonicDistanceWithTimeout(trigPins[i], echoPins[i]);
+      Serial.print("    Reading " + String(j+1) + ": ");
+      
+      if (distance == -1) {
+        Serial.println("TIMEOUT ❌");
+      } else if (distance == -2) {
+        Serial.println("OUT OF RANGE ❌");
+      } else if (distance == 0) {
+        Serial.println("NO ECHO ❌");
+      } else {
+        Serial.println(String(distance) + "cm ✅");
+        totalDistance += distance;
+        validReadings++;
+      }
+      delay(100); // Small delay between readings
+    }
+    
+    if (validReadings > 0) {
+      long avgDistance = totalDistance / validReadings;
+      Serial.println("  Average: " + String(avgDistance) + "cm (Valid: " + String(validReadings) + "/5)");
+      
+      if (validReadings >= 3) {
+        Serial.println("  Status: ✅ WORKING");
+      } else {
+        Serial.println("  Status: ⚠️  INTERMITTENT");
+      }
+    } else {
+      Serial.println("  Status: ❌ NOT RESPONDING");
+    }
+  }
+  
+  Serial.println("\n=== ULTRASONIC SENSOR TEST COMPLETE ===");
+  Serial.println("💡 If sensors show TIMEOUT/NO ECHO:");
+  Serial.println("   - Check wiring (VCC, GND, TRIG, ECHO)");
+  Serial.println("   - Ensure 5V power supply for HC-SR04");
+  Serial.println("   - Check for loose connections");
+  Serial.println("   - Verify no pin conflicts with other components");
 }
 
 // Collection sequence execution
